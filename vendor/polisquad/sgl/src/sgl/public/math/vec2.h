@@ -4,8 +4,8 @@
 #include "vec.h"
 
 /**
- * @struct Vec2 vec3.h
- * @brief a 3-components templated vector
+ * @struct Vec2 vec2.h
+ * @brief a 2-components templated vector
  */
 template<typename T = float32>
 struct Vec2 : public Vec<T>

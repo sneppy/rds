@@ -1,0 +1,8 @@
+# Build and temp files --------------------------
+/build/
+temp*
+
+# Output files ----------------------------------
+/bin/
+/dist/
+/lib/

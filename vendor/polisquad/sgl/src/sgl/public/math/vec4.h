@@ -7,7 +7,7 @@
  * @struct Vec4 vec4.h
  * @brief A 4-components templated vector
  */
-template<typename T>
+template<typename T = float32>
 struct Vec4 : public Vec<T>
 {
 protected:
