@@ -36,6 +36,7 @@ public:
 
 			// Push characters
 			data.pushUnsafe(source, length);
+			data(data.getCount()) = '\0';
 		}
 	}
 
@@ -47,7 +48,11 @@ public:
 	 */
 	FORCE_INLINE String(const ansichar * source, sizet size)
 	{
-		if (source && size) data.pushUnsafe(source, size);
+		if (source && size)
+		{
+			data.pushUnsafe(source, size);
+			data(data.getCount()) = '\0';
+		}
 	}
 
 	/// @brief Returns allocated size

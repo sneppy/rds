@@ -31,7 +31,7 @@ public:
 		second(_second) {}
 
 	/// @brief Partial-constructor
-	FORCE_INLINE Pair(const A & _first) : first(_first) {}
+	FORCE_INLINE Pair(const A & _first) : first(_first), second() {}
 
 	/// @brief Explicit default assignment-operator
 	Pair & operator=(const Pair<A, B> & p) = default;
@@ -78,3 +78,14 @@ public:
 	/// @}
 };
 
+/**
+ * Global function to create a pair template
+ * 
+ * @param [in] a,b pair values
+ * @return new pair
+ */
+template<typename A, typename B>
+FORCE_INLINE Pair<A, B> makePair(const A & a, const B & b)
+{
+	return Pair<A, B>(a, b);
+}

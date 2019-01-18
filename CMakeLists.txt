@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12)
 
 # Project setup ---------------------------------
-project(sgl
+project(rds
 
 	C
 	CXX
@@ -34,7 +34,7 @@ add_subdirectory(vendor)
 add_subdirectory(src)
 
 ## Test setup -----------------------------------
-option(SGL_UNIT_TEST "enable unit testing" ON)
+option(SGL_UNIT_TEST "enable unit testing" OFF)
 if(SGL_UNIT_TEST)
 	add_subdirectory(test)
 endif(SGL_UNIT_TEST)

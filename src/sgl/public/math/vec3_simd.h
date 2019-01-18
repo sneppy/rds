@@ -96,6 +96,12 @@ public:
 		return PlatformMath::sqrt(x * x + y * y + z * z);
 	}
 
+	FORCE_INLINE Vec3<T> getSafeNormal() const
+	{
+		const T size = getSize();
+		return size ? Vec3<T>(VecOps::div(data, VecOps::load(size))) : vec3::zero;
+	}
+
 	/// Returns normal vector
 	FORCE_INLINE Vec3<T> getNormal() const
 	{
@@ -300,6 +306,28 @@ public:
 		return Vec3<T>(y * v.z - z * v.y, x * v.z - z * v.x, x * v.y - y * v.x);
 	}
 
+	/// Convert direction vector to quaternion rotation
+	FORCE_INLINE Quat<T, hasVectorIntrinsics(T, 4)> rotation() const
+	{
+		const float32
+			yaw		= PlatformMath::atan2(y, x) * 0.5f,
+			pitch	= PlatformMath::atan2(z, PlatformMath::sqrt(x * x + y * y)) * 0.5f;
+			// Roll is zero
+		
+		float32
+			ys = PlatformMath::sin(yaw),
+			yc = PlatformMath::cos(yaw),
+			ps = PlatformMath::sin(pitch),
+			pc = PlatformMath::cos(pitch);
+		
+		return Quat<T, hasVectorIntrinsics(T, 4)>(
+			ps * ys,
+			-ps * yc,
+			pc * ys,
+			pc * yc
+		);
+	}
+
 	/// Convert to another underlying type
 	template<typename U, bool bHasVectorIntrinsics>
 	FORCE_INLINE operator Vec3<U, bHasVectorIntrinsics>() const
@@ -337,13 +365,13 @@ FORCE_INLINE Vec3<float32, true> Vec3<float32, true>::operator/(float32 s) const
 template<>
 FORCE_INLINE bool Vec3<float32, true>::isNearlyZero() const
 {
-	return VecOps::cmp<Simd::CMP_GE>(VecOps::bor(data, VecOps::neg), VecT{-FLT_EPSILON, -FLT_EPSILON, -FLT_EPSILON, -FLT_EPSILON}) >= 0xe;
+	return (VecOps::cmp<Simd::CMP_GE>(VecOps::bor(data, VecOps::neg), VecT{-FLT_EPSILON, -FLT_EPSILON, -FLT_EPSILON, -FLT_EPSILON}) & 0x7) == 0x7;
 }
 
 template<>
 FORCE_INLINE bool Vec3<float32, true>::isEqual(const Vec3<float32> & v) const
 {
-	return VecOps::cmp<Simd::CMP_GE>(VecOps::bor(VecOps::sub(data, v.data), VecOps::neg), VecT{-FLT_EPSILON, -FLT_EPSILON, -FLT_EPSILON, -FLT_EPSILON}) >= 0xe;
+	return (VecOps::cmp<Simd::CMP_GE>(VecOps::bor(VecOps::sub(data, v.data), VecOps::neg), VecT{-FLT_EPSILON, -FLT_EPSILON, -FLT_EPSILON, -FLT_EPSILON}) & 0x7) == 0x7;
 }
 
 template<>

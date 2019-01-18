@@ -14,7 +14,6 @@ template<typename, bool>	struct Vec4;
 template<typename, bool>	struct Quat;
 template<typename, bool>	struct Mat3;
 template<typename, bool>	struct Mat4;
-template<typename>			struct Box;
 
 //////////////////////////////////////////////////
 // Typedefs for common types

@@ -3,6 +3,7 @@
 #include "core_types.h"
 #include "hal/platform_stdlib.h"
 #include "templates/is_integral.h"
+#include "templates/const_ref.h"
 
 /**
  * @struct GenericPlatformMath generic/generic_platform_math.h
@@ -20,6 +21,8 @@ struct GenericPlatformMath
 	static FORCE_INLINE float32 asin(float32 s)	{ return ::asinf(s); }
 	static FORCE_INLINE float32 acos(float32 s)	{ return ::acosf(s); }
 	static FORCE_INLINE float32 atan(float32 s)	{ return ::atanf(s); }
+
+	static FORCE_INLINE float32 atan2(float32 y, float32 x) { return ::atan2f(y, x); }
 	/** @} */
 
 	/**

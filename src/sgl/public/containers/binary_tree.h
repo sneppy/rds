@@ -125,7 +125,7 @@ public:
 			key(_key)
 		{
 			// First search
-			node = tree->find_internal(key, start);
+			node = _tree->find_internal(key, start);
 		}
 
 		/// @brief Default-iterator, private, just null everything

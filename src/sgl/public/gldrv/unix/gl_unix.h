@@ -29,16 +29,25 @@
 	expansion(PFNGLENABLEVERTEXATTRIBARRAYPROC, glEnableVertexAttribArray) \
 	expansion(PFNGLDRAWARRAYSPROC, glDrawArrays) \
 	expansion(PFNGLDRAWELEMENTSPROC, glDrawElements) \
+	expansion(PFNGLDRAWRANGEELEMENTSPROC, glDrawRangeElements) \
+	expansion(PFNGLPOLYGONMODEPROC, glPolygonMode) \
 	expansion(PFNGLCOMPILESHADERPROC, glCompileShader) \
 	expansion(PFNGLATTACHSHADERPROC, glAttachShader) \
 	expansion(PFNGLCREATEPROGRAMPROC, glCreateProgram) \
 	expansion(PFNGLLINKPROGRAMPROC, glLinkProgram) \
 	expansion(PFNGLUSEPROGRAMPROC, glUseProgram) \
+	expansion(PFNGLCREATESHADERPROC, glCreateShader) \
+	expansion(PFNGLSHADERSOURCEPROC, glShaderSource) \
+	expansion(PFNGLGETUNIFORMLOCATIONPROC, glGetUniformLocation) \
+	expansion(PFNGLUNIFORMMATRIX4FVPROC, glUniformMatrix4fv) \
 	expansion(PFNGLREADBUFFERPROC, glReadBuffer) \
 	expansion(PFNGLDRAWBUFFERPROC, glDrawBuffer) \
 	expansion(PFNGLBLITFRAMEBUFFERPROC, glBlitFramebuffer) \
 	expansion(PFNGLFINISHPROC, glFinish) \
-	expansion(PFNGLBINDTEXTUREPROC, glBindTexture)
+	expansion(PFNGLBINDTEXTUREPROC, glBindTexture) \
+	expansion(PFNGLFRONTFACEPROC, glFrontFace) \
+	expansion(PFNGLGETPROGRAMIVPROC, glGetProgramiv) \
+	expansion(PFNGLGETSHADERIVPROC, glGetShaderiv) \
 
 #define GL_DECLARE_ENTRYPOINTS(type, func) extern type func;
 

@@ -169,7 +169,7 @@ public:
 	FORCE_INLINE uint64 getSize() const { return size; }
 
 	/// @brief Return true if array is empty
-	FORCE_INLINE bool isEmpty() const { return count > 0; }
+	FORCE_INLINE bool isEmpty() const { return count == 0; }
 
 	/// @brief Return true if has valid buffer
 	FORCE_INLINE bool hasBuffer() const { return buffer != nullptr; }
@@ -230,6 +230,9 @@ public:
 
 	/// @brief Returns const pointer to underlying data buffer
 	/// @{
+	FORCE_INLINE T * operator*() { return buffer; }
+	FORCE_INLINE T * getData() { return operator*(); }
+
 	FORCE_INLINE const T * operator*() const { return buffer; }
 	FORCE_INLINE const T * getData() const { return operator*(); }
 	/// @}

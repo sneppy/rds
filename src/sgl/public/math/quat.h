@@ -13,7 +13,7 @@ struct Quat : public Vec4<T, false>
 {
 public:
 	/// Default constructor
-	CONSTEXPR FORCE_INLINE Quat() : Vec4<T, false>(T(1), T(0), T(0), T(0)) {};
+	CONSTEXPR FORCE_INLINE Quat() : Quat<T, false>(T(0), Vec3<T, false>::up) {};
 
 	/// Convert @ref Vec4
 	CONSTEXPR FORCE_INLINE Quat(const Vec4<T, false> & v) : Vec4<T, false>(v) {};
@@ -67,7 +67,7 @@ public:
 	/// Get inverse quaternion
 	FORCE_INLINE Quat<T, false> operator!() const
 	{
-		return Quat<T, false>(this->x, this->y, this->z, -this->w);
+		return Quat<T, false>(-this->x, -this->y, -this->z, this->w);
 	}
 
 	/**

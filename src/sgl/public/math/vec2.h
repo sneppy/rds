@@ -268,3 +268,21 @@ FORCE_INLINE bool Vec2<float32>::isEqual(const Vec2<float32> & v) const
 {
 	return PlatformMath::abs(x - v.x) <= FLT_EPSILON & PlatformMath::abs(y - v.y) <= FLT_EPSILON;
 }
+
+template<>
+FORCE_INLINE void Vec2<float32>::print(FILE * out) const
+{
+	fprintf(out, "v2f(%.3f, %.3f)\n", x, y);
+}
+
+template<>
+FORCE_INLINE void Vec2<int32>::print(FILE * out) const
+{
+	fprintf(out, "v2i(%d, %d)\n", x, y);
+}
+
+template<>
+FORCE_INLINE void Vec2<uint32>::print(FILE * out) const
+{
+	fprintf(out, "v2u(%u, %u)\n", x, y);
+}

@@ -29,6 +29,9 @@
 #include "templates/ref_count.h"
 #include "templates/signed.h"
 #include "templates/unsigned.h"
+
+#include "math/math.h"
+
 #include "containers/array.h"
 #include "containers/binary_tree.h"
 #include "containers/linked_list.h"
@@ -37,4 +40,3 @@
 #include "containers/string.h"
 #include "containers/tree_map.h"
 #include "containers/containers.h"
-
