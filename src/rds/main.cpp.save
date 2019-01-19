@@ -28,7 +28,7 @@ public:
 
 public:
 	/// Default constructor
-	Cube() : shape(vec3(-1.f), vec3(2.f)), friction(1.f), mass(1.5f), speed(0.f), angularSpeed(0.f) {};
+	Cube() : shape(vec3(-1.f), vec3(2.f)), friction(1.5f), mass(2.f), speed(0.f), angularSpeed(0.f) {};
 
 	/// Apply impulsive force
 	FORCE_INLINE void applyImpulse(const vec3 & d, const vec3 & p, float32 dt)
@@ -36,14 +36,13 @@ public:
 		const vec3 com = (shape.min + shape.max) / 2.f;
 
 		// Calc torque
-		const vec3 torque = (rotation * (p - com)) ^ d;
+		const vec3 torque = (p - com) ^ d;
 
 		// Update speed
 		speed += d / mass * dt;
 
 		// Update angular speed
-		const vec3 extent = shape.max - shape.min;
-		const vec3 angularAcceleration = torque / (mass * (extent.x * extent.x) * (2.f / 5.f));
+		const vec3 angularAcceleration = torque / (mass / 12.f);
 		angularSpeed += angularAcceleration * dt;
 
 		(quat(angularSpeed.getSize(), angularSpeed.getNormal())).print();
@@ -72,14 +71,15 @@ vec3 cameraSpeed;
 quat cameraRotation;
 mat4 viewProjectionMatrix;
 
-const float32
-	accelerationFactor = 64.f,
-	brakeFactor = 4.f;
-
 int main()
 {
 	Memory::createGMalloc();
-	srand(clock());
+
+	(vec3::right ^ vec3::up).print();
+	(mat4::rotation(M_PI_2 / 3.f, vec3::right) * vec3::up).print();
+	(quat(M_PI_2, vec3::forward) * vec3::right).print();
+
+	return 0;
 
 	// Setup input
 	Map<uint32, int32> keys;
@@ -106,18 +106,15 @@ int main()
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 	/// Setup a nice little cube
+	Cube cube1, cube2;
+	cube1.location = vec3(0.f);
+	cube1.rotation = quat(0.f, vec3::up);
+	cube2.location = vec3(1.f, 0.5f, 3.f);
+	cube2.rotation = quat(M_PI_4, vec3::unit);
 
-	const uint32 numCubes = 256;
 	Array<Cube*> cubes;
-	for (uint32 i = 0; i < numCubes; ++i)
-	{
-		Cube * cube = new Cube;
-		cube->location = vec3(Math::randf() - 0.5f, Math::randf() - 0.5f, Math::randf()) * 20.f;
-		cube->rotation = quat(Math::randf() * M_PI_2, vec3(Math::randf() - 0.5f));
-		cube->mass = Math::randf() + 0.5f;
-
-		cubes += cube;
-	}
+	cubes += &cube1,
+	cubes += &cube2;
 
 	using Vertex = Vec3<float32, false>;
 	Array<Vertex> vertices;
@@ -192,6 +189,9 @@ int main()
 
 	// Camera setup
 	cameraLocation = vec3(0.f, 0.f, -3.f);
+	const float32
+		accelerationFactor = 16.f,
+		brakeFactor = 4.f;
 
 	while (!bShouldQuit)
 	{
@@ -199,8 +199,6 @@ int main()
 		currTick = SDL_GetPerformanceCounter();
 		dt = (float32)(currTick - lastTick) / SDL_GetPerformanceFrequency();
 		lastTick = currTick;
-
-		printf("FPS: %u\n", (uint32)(1.f / dt));
 		
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
@@ -242,7 +240,8 @@ int main()
 		cameraLocation += cameraSpeed * dt;
 
 		// Simulate physics
-		for (const auto cube : cubes) cube->tickPhysics(dt);
+		cube1.tickPhysics(dt);
+		cube2.tickPhysics(dt);
 
 		// Draw
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -250,12 +249,13 @@ int main()
 		viewProjectionMatrix = mat4::glProjection(M_PI_2, 0.5f) * mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
 		glUniformMatrix4fv(uniforms["viewProjectionMatrix"], 1, GL_TRUE, viewProjectionMatrix.array);
 
-		// Draw cubes
-		for (const auto cube : cubes)
-		{
-			glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, mat4::transform(cube->location, cube->rotation, vec3(1.f)).array);
-			glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0);
-		}
+		// First cube
+		glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, mat4::transform(cube1.location, cube1.rotation).array);
+		glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0);
+
+		// Second cube
+		glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, mat4::transform(cube2.location, cube2.rotation).array);
+		glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0);
 
 		SDL_GL_SwapWindow(window);
 	}
@@ -277,10 +277,6 @@ bool hitUnderMouse(uint32 x, uint32 y, Hit & hit, const Array<Cube*> & cubes)
 
 	for (const auto & cube : cubes)
 	{
-		// Start by removing those cubes we can't see
-		if (((cube->location - cameraLocation).normalize() & cameraRotation.forward()) < 0.f)
-			continue;
-		
 		const mat4 inverseModelMatrix = !mat4::transform(cube->location, cube->rotation);
 		
 		const vec3
@@ -291,7 +287,7 @@ bool hitUnderMouse(uint32 x, uint32 y, Hit & hit, const Array<Cube*> & cubes)
 		if (cube->shape.intersect(localStart, localEnd, localHit))
 		{
 			printf("hit!\n");
-			cube->applyImpulse((end - start).normalize() * 1000.f, localHit, 1.f / 60.f);
+			cube->applyImpulse((end - start).normalize() * 100.f, localHit, 1.f / 60.f);
 		}
 	}
 

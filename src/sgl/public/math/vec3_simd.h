@@ -303,7 +303,19 @@ public:
 	 */
 	FORCE_INLINE Vec3<T> operator^(const Vec3<T> & v) const
 	{
-		return Vec3<T>(y * v.z - z * v.y, x * v.z - z * v.x, x * v.y - y * v.x);
+		//return Vec3<T>(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x);
+		return Vec3<T>(
+			VecOps::sub(
+				VecOps::mul(
+					VecOps::template shuffle<1, 2, 0, 0>(this->data),
+					VecOps::template shuffle<2, 0, 1, 1>(v.data)
+				),
+				VecOps::mul(
+					VecOps::template shuffle<2, 0, 1, 1>(this->data),
+					VecOps::template shuffle<1, 2, 0, 0>(v.data)
+				)
+			)
+		);
 	}
 
 	/// Convert direction vector to quaternion rotation

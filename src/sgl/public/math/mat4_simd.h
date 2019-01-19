@@ -585,14 +585,14 @@ public:
 	{
 		/// @ref http://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/index.htm
 		return Mat4<T>(
-			q.w, q.z, -q.y, q.x,
-			-q.z, q.w, q.x, q.y,
-			q.y, -q.x, q.w, q.z,
-			-q.x, -q.y, -q.z, q.w
-		).multiplyTransposed(Mat4<T>(
 			q.w, -q.z, q.y, q.x,
 			q.z, q.w, -q.x, q.y,
 			-q.y, q.x, q.w, q.z,
+			-q.x, -q.y, -q.z, q.w
+		).multiplyTransposed(Mat4<T>(
+			q.w, q.z, -q.y, q.x,
+			-q.z, q.w, q.x, q.y,
+			q.y, -q.x, q.w, q.z,
 			-q.x, -q.y, -q.z, q.w
 		));
 	}
