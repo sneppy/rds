@@ -5,67 +5,8 @@
 
 Malloc * gMalloc = nullptr;
 
-struct Hit
-{
-	vec3 hitPoint;
-};
-
-struct Cube
-{
-public:
-	// Cube transform
-	vec3 location;
-	quat rotation;
-
-	// Cube shape
-	Box shape;
-
-	// Physics
-	float32 friction;
-	float32 mass;
-	vec3 speed;
-	vec3 angularSpeed;
-
-public:
-	/// Default constructor
-	Cube() : shape(vec3(-1.f), vec3(2.f)), friction(1.f), mass(1.5f), speed(0.f), angularSpeed(0.f) {};
-
-	/// Apply impulsive force
-	FORCE_INLINE void applyImpulse(const vec3 & d, const vec3 & p, float32 dt)
-	{
-		const vec3 com = (shape.min + shape.max) / 2.f;
-
-		// Calc torque
-		const vec3 torque = (rotation * (p - com)) ^ d;
-
-		// Update speed
-		speed += d / mass * dt;
-
-		// Update angular speed
-		const vec3 extent = shape.max - shape.min;
-		const vec3 angularAcceleration = torque / (mass * (extent.x * extent.x) * (2.f / 5.f));
-		angularSpeed += angularAcceleration * dt;
-
-		(quat(angularSpeed.getSize(), angularSpeed.getNormal())).print();
-	}
-
-	/// Simualte physics
-	FORCE_INLINE void tickPhysics(float32 dt)
-	{
-		// Damp speed
-		speed -= (speed * friction * dt);
-		angularSpeed -= (angularSpeed * friction * dt);
-
-		// Update location and rotation
-		location += speed * dt;
-		if (!angularSpeed.isNearlyZero())
-			rotation = quat(angularSpeed.getSize() * dt, angularSpeed.getNormal()) * rotation;
-	}
-};
-
 ansichar * readFile(const String & filename);
 uint32 createProgram();
-bool hitUnderMouse(uint32 x, uint32 y, Hit & hit, const Array<Cube*> & cubes);
 
 vec3 cameraLocation;
 vec3 cameraSpeed;
@@ -73,8 +14,90 @@ quat cameraRotation;
 mat4 viewProjectionMatrix;
 
 const float32
-	accelerationFactor = 64.f,
+	accelerationFactor = 16.f,
 	brakeFactor = 4.f;
+
+class Wheel
+{
+public:
+	/// World space location and rotation
+	vec3 location;
+	quat rotation;
+
+	/// Physics state
+	vec3 linearMomentum;
+	vec3 angularMomentum;
+
+	/// Current torque applied to the wheel
+	vec3 torque;
+
+	/// Current steering angle and wheel phase
+	quat wheelPhase;
+	quat steeringAngle;
+
+	/// Wheel geometric and physics properties
+	float32 inertialMass;
+	float32 radius;
+	float32 pressure;
+
+public:
+	/// Default constructor
+	Wheel() :
+		location(0.f),
+		rotation(0.f, vec3::up),
+		linearMomentum(0.f),
+		angularMomentum(0.f),
+		torque(0.f),
+		inertialMass(20.f),
+		radius(0.24f),
+		pressure(2.1f) {}
+
+	/// Apply motor force to wheel
+	FORCE_INLINE void applyMotorForce(float32 f)
+	{
+		/// Motor force always spins in forward direction
+		torque += vec3::right * f * 20.f;
+	}
+
+	/// Apply brake force to wheel
+	FORCE_INLINE void applyBrakeForce(float32 f)
+	{
+		/// Brake force stops the wheel rotation
+		if (!angularMomentum.isNearlyZero())
+			torque += -angularMomentum.getNormal() * f * 100.f;
+	}
+
+	/// Simulate physics
+	FORCE_INLINE void tickPhysics(float32 dt)
+	{
+		/// @see https://www.engineeringtoolbox.com/rolling-friction-resistance-d_1303.html
+		/// Apply rolling friction
+		const float32 linearSpeedMagnitude = (linearMomentum / inertialMass).getSize();
+		const float32 frictionCoeff = 0.005f + (1.f / pressure) * (0.01f + (linearSpeedMagnitude * linearSpeedMagnitude / 771.6f));
+
+		/// Apply rolling friction
+		const float32 normalForce = inertialMass * 9.81f;
+		if (!angularMomentum.isNearlyZero())
+			torque += -angularMomentum.getNormal() * frictionCoeff * radius * normalForce;	
+
+		/// Update momentum
+		angularMomentum += torque * dt;
+		linearMomentum = (angularMomentum ^ vec3::up) / radius;
+
+		angularMomentum.print();
+
+		/// Update location and rotation
+		const float32 inertialMoment = inertialMass * radius * radius;
+		if (!angularMomentum.isNearlyZero())
+			wheelPhase = quat((angularMomentum.getSize() / inertialMoment) * dt, angularMomentum.getNormal()) * wheelPhase;
+		
+		rotation = steeringAngle * wheelPhase;
+		location += (steeringAngle * linearMomentum / inertialMass) * dt;
+
+		/// Consume torque
+		torque = 0.f;
+	}
+};
 
 int main()
 {
@@ -105,20 +128,12 @@ int main()
 	glEnable(GL_DEPTH_TEST);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-	/// Setup a nice little cube
+	// Setup wheel
+	Wheel lWheel, rWheel;
+	lWheel.location = vec3(-1.f, 0.f, 0.f);
+	rWheel.location = vec3(1.f, 0.f, 0.f);
 
-	const uint32 numCubes = 256;
-	Array<Cube*> cubes;
-	for (uint32 i = 0; i < numCubes; ++i)
-	{
-		Cube * cube = new Cube;
-		cube->location = vec3(Math::randf() - 0.5f, Math::randf() - 0.5f, Math::randf()) * 20.f;
-		cube->rotation = quat(Math::randf() * M_PI_2, vec3(Math::randf() - 0.5f));
-		cube->mass = Math::randf() + 0.5f;
-
-		cubes += cube;
-	}
-
+	// Setup a nice little cube
 	using Vertex = Vec3<float32, false>;
 	Array<Vertex> vertices;
 	vertices += Vertex(-1.f, -1.f, -1.f);
@@ -129,13 +144,6 @@ int main()
 	vertices += Vertex(1.f, -1.f, 1.f);
 	vertices += Vertex(1.f, 1.f, -1.f);
 	vertices += Vertex(1.f, 1.f, 1.f);
-	vertices.push((const Vertex[]){
-		// Plane
-		Vertex(-10.f, -2.f, -10.f),
-		Vertex(-10.f, -2.f, 10.f),
-		Vertex(10.f, -2.f, -10.f),
-		Vertex(10.f, -2.f, 10.f),
-	}, 4);
 
 	Array<dim3> triangles;
 	triangles.push((const dim3[]){
@@ -150,10 +158,10 @@ int main()
 		dim3(2, 6, 3),
 		dim3(6, 7, 3),
 		dim3(1, 5, 0),
-		dim3(5, 4, 0),
-		dim3(8, 10, 9),
-		dim3(10, 11, 9)
-	}, 14);
+		dim3(5, 4, 0)
+	}, 12);
+
+	printf("OpenGL version is (%s)\n", glGetString(GL_VERSION));
 
 	// Setup cube in opengl
 	uint32 prog = createProgram();
@@ -168,8 +176,6 @@ int main()
 
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, vertices.getCount() * sizeof(Vertex), *vertices, GL_STATIC_DRAW);
-
-	auto bu = *triangles;
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, triangles.getCount() * sizeof(dim3), *triangles, GL_STATIC_DRAW);
@@ -191,7 +197,8 @@ int main()
 	float32 dt = 0.f;
 
 	// Camera setup
-	cameraLocation = vec3(0.f, 0.f, -3.f);
+	cameraLocation = vec3(0.f, 3.f, 1.f);
+	cameraRotation = quat(M_PI_4, vec3::right);
 
 	while (!bShouldQuit)
 	{
@@ -200,7 +207,7 @@ int main()
 		dt = (float32)(currTick - lastTick) / SDL_GetPerformanceFrequency();
 		lastTick = currTick;
 
-		printf("FPS: %u\n", (uint32)(1.f / dt));
+		//printf("FPS: %u\n", (uint32)(1.f / dt));
 		
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
@@ -216,16 +223,6 @@ int main()
 				case SDL_KEYUP:
 					keys[(uint32)event.key.keysym.sym] = 0;
 					break;
-				case SDL_MOUSEBUTTONDOWN:
-					Hit hit;
-					if (hitUnderMouse(
-						event.button.x,
-						event.button.y,
-						hit,
-						cubes
-					))
-						hit.hitPoint.print();
-					break;
 			}
 		}
 
@@ -235,14 +232,42 @@ int main()
 			movementX = keys[SDLK_d] - keys[SDLK_a],
 			movementZ = keys[SDLK_w] - keys[SDLK_s],
 			movementY = keys[SDLK_SPACE] - keys[SDLK_LSHIFT];
+
+		const float32
+			r = 1.f,
+			l = 6.f,
+			L = 7.f,
+			alpha = M_PI / 3.f;
+		
+		float32
+			steeringAngle = (keys[SDLK_RIGHT] - keys[SDLK_LEFT]) / 2.5f,
+			a = Math::abs(steeringAngle) + alpha,
+			A = Math::sin(a),
+			B = (L / r) - Math::cos(a),
+			C = 1.f - (L / r) * Math::cos(a) + (L * L - l * l) / (2.f * r * r),
+			resultingAngle = 2.f * Math::atan((A + Math::sqrt(A * A + B * B - C * C)) / (B + C)),
+			lWheelAngle = steeringAngle > 0.f ? steeringAngle : resultingAngle - alpha,
+			rWheelAngle = steeringAngle > 0.f ? alpha - resultingAngle : steeringAngle;
+
+		//printf("l: %f, r: %f\n",lWheelAngle, rWheelAngle);
+
+		lWheel.steeringAngle = quat(lWheelAngle, vec3::up);
+		rWheel.steeringAngle = quat(rWheelAngle, vec3::up);
+
+		lWheel.applyMotorForce(keys[SDLK_UP]);
+		lWheel.applyBrakeForce(keys[SDLK_DOWN]);
+
+		rWheel.applyMotorForce(keys[SDLK_UP]);
+		rWheel.applyBrakeForce(keys[SDLK_DOWN]);
 		
 		// Camera location
 		vec3 cameraAcceleration(movementX, movementY, movementZ);
-		cameraSpeed += (cameraAcceleration * accelerationFactor - cameraSpeed * brakeFactor) * dt;
+		cameraSpeed += ((cameraRotation * cameraAcceleration) * accelerationFactor - cameraSpeed * brakeFactor) * dt;
 		cameraLocation += cameraSpeed * dt;
 
 		// Simulate physics
-		for (const auto cube : cubes) cube->tickPhysics(dt);
+		lWheel.tickPhysics(dt);
+		rWheel.tickPhysics(dt);
 
 		// Draw
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -251,51 +276,14 @@ int main()
 		glUniformMatrix4fv(uniforms["viewProjectionMatrix"], 1, GL_TRUE, viewProjectionMatrix.array);
 
 		// Draw cubes
-		for (const auto cube : cubes)
-		{
-			glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, mat4::transform(cube->location, cube->rotation, vec3(1.f)).array);
-			glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0);
-		}
+		glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, mat4::transform(lWheel.location, lWheel.rotation, vec3(0.2f)).array);
+		glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0);
+
+		glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, mat4::transform(rWheel.location, rWheel.rotation, vec3(0.2f)).array);
+		glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0);
 
 		SDL_GL_SwapWindow(window);
 	}
-}
-
-bool hitUnderMouse(uint32 x, uint32 y, Hit & hit, const Array<Cube*> & cubes)
-{
-	// Get ray from mouse
-	const float32
-		u = 2.f * x / 1920.f - 1.f,
-		v = 2.f * y / 1080.f - 1.f;
-
-	vec3 start(u, -v, -1.f), end;
-	
-	// Unproject ray
-	start	= !viewProjectionMatrix * (vec4(start, 1.f) * 0.5f);
-	end		= start + (start - cameraLocation) * 1000.f;
-	(start - cameraLocation).print();
-
-	for (const auto & cube : cubes)
-	{
-		// Start by removing those cubes we can't see
-		if (((cube->location - cameraLocation).normalize() & cameraRotation.forward()) < 0.f)
-			continue;
-		
-		const mat4 inverseModelMatrix = !mat4::transform(cube->location, cube->rotation);
-		
-		const vec3
-			localStart	= inverseModelMatrix * start,
-			localEnd	= inverseModelMatrix * end;
-
-		vec3 localHit;
-		if (cube->shape.intersect(localStart, localEnd, localHit))
-		{
-			printf("hit!\n");
-			cube->applyImpulse((end - start).normalize() * 1000.f, localHit, 1.f / 60.f);
-		}
-	}
-
-	return false;
 }
 
 ansichar * readFile(const String & filename)
@@ -331,16 +319,23 @@ uint32 createProgram()
 	
 	glShaderSource(vShader, 1, &vShaderSource, nullptr),
 	glShaderSource(fShader, 1, &fShaderSource, nullptr);
+	glCompileShader(vShader), glCompileShader(fShader);
 
-	int32 compileStatus = 0;
-	glGetShaderiv(vShader, GL_COMPILE_STATUS, &compileStatus);
-	if (!compileStatus) printf("Compile status");
-	glGetShaderiv(fShader, GL_COMPILE_STATUS, &compileStatus);
-	if (!compileStatus) printf("Compile status");
+	/* int32 logSize = 0;
+	glGetShaderiv(vShader, GL_INFO_LOG_LENGTH, &logSize);
+	ansichar * shaderLog = reinterpret_cast<ansichar*>(gMalloc->malloc(logSize));
+	glGetShaderInfoLog(vShader, logSize, &logSize, shaderLog);
+	printf("%s\n", shaderLog); */
 
 	glAttachShader(prog, vShader),
 	glAttachShader(prog, fShader);
 	glLinkProgram(prog);
+
+	int32 compileStatus = 0;
+	glGetShaderiv(vShader, GL_COMPILE_STATUS, &compileStatus);
+	if (!compileStatus) printf("Compile error in vertex shader\n");
+	glGetShaderiv(fShader, GL_COMPILE_STATUS, &compileStatus);
+	if (!compileStatus) printf("Compile error in fragment shader\n");
 
 	// Check link status
 	int32 linkStatus = 0;

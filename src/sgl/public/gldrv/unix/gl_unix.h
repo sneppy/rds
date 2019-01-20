@@ -46,8 +46,11 @@
 	expansion(PFNGLFINISHPROC, glFinish) \
 	expansion(PFNGLBINDTEXTUREPROC, glBindTexture) \
 	expansion(PFNGLFRONTFACEPROC, glFrontFace) \
+	expansion(PFNGLGETSTRINGPROC, glGetString) \
 	expansion(PFNGLGETPROGRAMIVPROC, glGetProgramiv) \
+	expansion(PFNGLISSHADERPROC, glIsShader) \
 	expansion(PFNGLGETSHADERIVPROC, glGetShaderiv) \
+	expansion(PFNGLGETSHADERINFOLOGPROC, glGetShaderInfoLog) \
 
 #define GL_DECLARE_ENTRYPOINTS(type, func) extern type func;
 
