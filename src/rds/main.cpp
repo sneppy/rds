@@ -20,84 +20,240 @@ const float32
 class Wheel
 {
 public:
-	/// World space location and rotation
-	vec3 location;
-	quat rotation;
+	/// Wheel relative transform
+	vec3 offset;
+	quat orientation;
+	quat phase;
 
-	/// Physics state
-	vec3 linearMomentum;
-	vec3 angularMomentum;
-
-	/// Current torque applied to the wheel
-	vec3 torque;
-
-	/// Current steering angle and wheel phase
-	quat wheelPhase;
-	quat steeringAngle;
-
-	/// Wheel geometric and physics properties
-	float32 inertialMass;
+	/// Geometric properties
 	float32 radius;
-	float32 pressure;
+
+	/// Physics properties
+	float32 mass;
+	float32 inertiaMoment;
+	float32 staticCoeff;
+	float32 kineticCoeff;
+	float32 tirePressure;
+
+	/// Vehicle properties
+	uint8 bDrive;
+
+	/// Dynamics
+	vec3 linearMomentum;
+	vec3 linearVelocity;
+	vec3 angularMomentum;
+	vec3 angularVelocity;
+
+	/// User input
+	float32 steeringAngle;
+	float32 throttle;
+
+	/// Owning vehicle
+	class Vehicle * vehicle;
 
 public:
 	/// Default constructor
-	Wheel() :
+	Wheel(vec3 _offset = 0.f) :
+		offset(_offset),
+		orientation(0.f, vec3::up),
+		phase(M_PI, vec3::right),
+		radius(0.21f),
+		mass(20.f),
+		inertiaMoment(mass * radius * radius / 2.f),
+		staticCoeff(1.f),
+		kineticCoeff(0.8f),
+		tirePressure(2.1f),
+		linearMomentum(0.f),
+		linearVelocity(linearMomentum / mass),
+		angularMomentum(0.f),
+		angularVelocity(angularMomentum / inertiaMoment),
+		steeringAngle(0.f),
+		vehicle(nullptr) {}
+	
+	FORCE_INLINE void tickPhysics(float32 dt);
+};
+	
+class Vehicle
+{
+	friend Wheel;
+
+public:
+	/// Car transform
+	vec3 location;
+	quat rotation;
+
+	/// Car properties
+	Array<Wheel> wheels;
+
+	/// Physics properties
+	float32 mass;
+	float32 inertiaMoment;
+	vec3 centerOfMass;
+
+	/// Dynamics
+	vec3 linearMomentum;
+	vec3 linearVelocity;
+	vec3 angularMomentum;
+	vec3 angularVelocity;
+	vec3 wheelsForce;
+	vec3 wheelsTorque;
+
+public:
+	/// Default constructor
+	Vehicle() :
 		location(0.f),
 		rotation(0.f, vec3::up),
+		wheels(4),
+		mass(1500.f),
+		inertiaMoment((1.f / 12.f) * mass * (4.f + 18.f)),
+		centerOfMass(0.f, 0.f, -0.2f),
 		linearMomentum(0.f),
+		linearVelocity(0.f),
 		angularMomentum(0.f),
-		torque(0.f),
-		inertialMass(20.f),
-		radius(0.24f),
-		pressure(2.1f) {}
-
-	/// Apply motor force to wheel
-	FORCE_INLINE void applyMotorForce(float32 f)
+		angularVelocity(0.f),
+		wheelsForce(0.f),
+		wheelsTorque(0.f) {}
+	
+	/// Setup wheels
+	FORCE_INLINE void setupWheels()
 	{
-		/// Motor force always spins in forward direction
-		torque += vec3::right * f * 20.f;
+		wheels(0) = Wheel(vec3(-1.587 / 2.f, 0.f, 1.4f)); // Left
+		wheels(1) = Wheel(vec3(1.587 / 2.f, 0.f, 1.4f)); // Left
+		wheels(2) = Wheel(vec3(-1.587 / 2.f, 0.f, -1.f)); // Left
+		wheels(3) = Wheel(vec3(1.587 / 2.f, 0.f, -1.f)); // Left
+
+		wheels[0].vehicle = this;
+		wheels[1].vehicle = this;
+		wheels[2].vehicle = this;
+		wheels[3].vehicle = this;
 	}
 
-	/// Apply brake force to wheel
-	FORCE_INLINE void applyBrakeForce(float32 f)
+	/// Set throttle
+	FORCE_INLINE void setThrottle(float32 value)
 	{
-		/// Brake force stops the wheel rotation
-		if (!angularMomentum.isNearlyZero())
-			torque += -angularMomentum.getNormal() * f * 100.f;
+		wheels[0].throttle = value;
+		wheels[1].throttle = value;
+		wheels[2].throttle = value;
+		wheels[3].throttle = value;
+	}
+
+	/// Set steering on wheels
+	FORCE_INLINE void setSteering(float32 value)
+	{
+		const float32
+			axleRadius = 0.2f,
+			axleMaxLength = 1.2f,
+			axleMinLength = 1.f;
+		
+		const float32
+			steeringAngle = value * 0.2f,
+			alpha = M_PI / 3.f + Math::abs(steeringAngle),
+			A = Math::sin(alpha),
+			B = (axleMaxLength / axleRadius) - Math::cos(alpha),
+			C = 1.f - (axleMaxLength / axleRadius) * Math::cos(alpha) + (axleMaxLength * axleMaxLength - axleMinLength * axleMinLength) / (2.f * axleRadius * axleRadius),
+			resultAngle = 2.f * Math::atan((A + Math::sqrt(A * A + B * B - C * C)) / (B + C));
+		
+		const float32
+			leftWheelAngle	= value > 0.f ? steeringAngle : -M_PI / 3.f + resultAngle,
+			rightWheelAngle	= value > 0.f ? M_PI / 3.f - resultAngle : steeringAngle;
+		
+		wheels[0].steeringAngle = Math::lerp(wheels[0].steeringAngle, leftWheelAngle, 0.1f),
+		wheels[1].steeringAngle = Math::lerp(wheels[1].steeringAngle, rightWheelAngle, 0.1f);
 	}
 
 	/// Simulate physics
 	FORCE_INLINE void tickPhysics(float32 dt)
 	{
-		/// @see https://www.engineeringtoolbox.com/rolling-friction-resistance-d_1303.html
-		/// Apply rolling friction
-		const float32 linearSpeedMagnitude = (linearMomentum / inertialMass).getSize();
-		const float32 frictionCoeff = 0.005f + (1.f / pressure) * (0.01f + (linearSpeedMagnitude * linearSpeedMagnitude / 771.6f));
+		// Delegate to wheels
+		for (auto & wheel : wheels)
+			wheel.tickPhysics(dt);
 
-		/// Apply rolling friction
-		const float32 normalForce = inertialMass * 9.81f;
-		if (!angularMomentum.isNearlyZero())
-			torque += -angularMomentum.getNormal() * frictionCoeff * radius * normalForce;	
+		// Update momentum
+		linearMomentum	+= (rotation * wheelsForce) * dt;
+		angularMomentum	+= wheelsTorque * dt;
 
-		/// Update momentum
-		angularMomentum += torque * dt;
-		linearMomentum = (angularMomentum ^ vec3::up) / radius;
+		linearVelocity	= linearMomentum / mass;
+		angularVelocity	= angularMomentum / inertiaMoment;
 
-		angularMomentum.print();
-
-		/// Update location and rotation
-		const float32 inertialMoment = inertialMass * radius * radius;
-		if (!angularMomentum.isNearlyZero())
-			wheelPhase = quat((angularMomentum.getSize() / inertialMoment) * dt, angularMomentum.getNormal()) * wheelPhase;
+		// Update location
+		location += linearVelocity * dt;
+		if (!angularVelocity.isNearlyZero())
+			rotation = quat(angularVelocity.getSize() * dt, angularVelocity.getNormal()) * rotation,
+			rotation.normalize();
 		
-		rotation = steeringAngle * wheelPhase;
-		location += (steeringAngle * linearMomentum / inertialMass) * dt;
+		wheelsForce		= 0.f;
+		wheelsTorque	= 0.f;
+	}
 
-		/// Consume torque
-		torque = 0.f;
+	FORCE_INLINE void applyForce(const vec3 & f, const vec3 & p)
+	{
+		wheelsForce += f;
+		wheelsTorque += (p - centerOfMass) ^ f;
+	}
+
+	FORCE_INLINE Array<mat4> getWheelsTransforms() const
+	{
+		Array<mat4> transforms;
+		mat4 vehicleTransform = mat4::transform(location, rotation);
+		for (const auto & wheel : wheels)
+			transforms += vehicleTransform * mat4::transform(wheel.offset, wheel.orientation, vec3(wheel.radius));
+		
+		return transforms;
 	}
 };
+
+FORCE_INLINE void Wheel::tickPhysics(float32 dt)
+{
+	if (vehicle == nullptr) return;
+
+	// Compute suspension force
+	// Static for now
+	const vec3 suspensionForce = vec3::up * ((vehicle->mass) / 4.f + this->mass) * 9.81f; // Gravity force
+
+	// Static and knetic friction forces
+	const float32
+		staticFriction	= staticCoeff * suspensionForce.getSize(),
+		kineticFriction	= kineticCoeff * suspensionForce.getSize();
+	
+	// Wheel torque
+	const quat steeringOrientation = quat(steeringAngle, vec3::up);
+	const vec3 tractiveForce = steeringOrientation.forward() * 1000.f * throttle;
+
+	// Rolling resistance
+	const vec3 rollingResistance = -linearVelocity.getSafeNormal() * (0.005f + (1.f / tirePressure) * (0.01f + (linearVelocity * linearVelocity).getSize() / 771.f)) * suspensionForce.getSize();
+
+	// Distributed drag resistance
+	const vec3 dragResistance = -(!vehicle->rotation * vehicle->linearVelocity) * vehicle->linearVelocity.getSize() * 0.45f / 4.f;
+
+	// Forward force
+	const vec3 forwardForce = tractiveForce + rollingResistance + dragResistance;
+	
+	// Lateral force
+	const vec3 lateralLinearMotion = ((!vehicle->rotation * vehicle->linearMomentum / 4.f) & steeringOrientation.right()) * steeringOrientation.right();
+	const vec3 centerOffset = (offset - vehicle->centerOfMass);
+	const vec3 lateralAngularMotion = (vehicle->angularMomentum ^ centerOffset) / (4.f * centerOffset.getSize() * centerOffset.getSize());
+	const vec3 lateralForce = -(lateralLinearMotion + lateralAngularMotion) / dt;
+
+	// Check friction
+	vec3 groundForce = lateralForce + forwardForce;
+	if (groundForce.getSize() > staticFriction + dragResistance.getSize())
+	{
+		printf("too much! %f\n", groundForce.getSize());
+		groundForce *= kineticFriction / groundForce.getSize();
+	}
+	
+	// Apply force to chassis
+	vehicle->applyForce(groundForce, offset);
+
+	// Update wheel rotation
+	angularVelocity = vec3::right * vehicle->linearVelocity.getSize() / radius;
+	vehicle->linearVelocity.print();
+	if (!angularVelocity.isNearlyZero())
+		phase = quat(angularVelocity.getSize() * dt, angularVelocity.getNormal()) * phase;
+
+	// Show wheel orientation
+	orientation = steeringOrientation * phase;
+}
 
 int main()
 {
@@ -107,6 +263,10 @@ int main()
 	// Setup input
 	Map<uint32, int32> keys;
 	point2 cursorLocation, cursorDelta;
+
+	// Setup car
+	Vehicle car;
+	car.setupWheels();
 
 	// Init keys
 	keys[SDLK_w] = 0,
@@ -127,11 +287,6 @@ int main()
 
 	glEnable(GL_DEPTH_TEST);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-	// Setup wheel
-	Wheel lWheel, rWheel;
-	lWheel.location = vec3(-1.f, 0.f, 0.f);
-	rWheel.location = vec3(1.f, 0.f, 0.f);
 
 	// Setup a nice little cube
 	using Vertex = Vec3<float32, false>;
@@ -196,9 +351,14 @@ int main()
 	uint64 lastTick = currTick;
 	float32 dt = 0.f;
 
+	// Positions of reference cubes
+	Array<mat4> cubes(128);
+	for (uint8 i = 0; i < cubes.getSize(); ++i)
+		cubes += mat4::translation(vec3(Math::randf(), 0.f, Math::randf()) * 100.f);
+
 	// Camera setup
-	cameraLocation = vec3(0.f, 3.f, 1.f);
-	cameraRotation = quat(M_PI_4, vec3::right);
+	cameraLocation = vec3(0.f, 1.f, -5.f);
+	cameraRotation = quat(0.f, vec3::right);
 
 	while (!bShouldQuit)
 	{
@@ -232,42 +392,20 @@ int main()
 			movementX = keys[SDLK_d] - keys[SDLK_a],
 			movementZ = keys[SDLK_w] - keys[SDLK_s],
 			movementY = keys[SDLK_SPACE] - keys[SDLK_LSHIFT];
-
-		const float32
-			r = 1.f,
-			l = 6.f,
-			L = 7.f,
-			alpha = M_PI / 3.f;
-		
-		float32
-			steeringAngle = (keys[SDLK_RIGHT] - keys[SDLK_LEFT]) / 2.5f,
-			a = Math::abs(steeringAngle) + alpha,
-			A = Math::sin(a),
-			B = (L / r) - Math::cos(a),
-			C = 1.f - (L / r) * Math::cos(a) + (L * L - l * l) / (2.f * r * r),
-			resultingAngle = 2.f * Math::atan((A + Math::sqrt(A * A + B * B - C * C)) / (B + C)),
-			lWheelAngle = steeringAngle > 0.f ? steeringAngle : resultingAngle - alpha,
-			rWheelAngle = steeringAngle > 0.f ? alpha - resultingAngle : steeringAngle;
-
-		//printf("l: %f, r: %f\n",lWheelAngle, rWheelAngle);
-
-		lWheel.steeringAngle = quat(lWheelAngle, vec3::up);
-		rWheel.steeringAngle = quat(rWheelAngle, vec3::up);
-
-		lWheel.applyMotorForce(keys[SDLK_UP]);
-		lWheel.applyBrakeForce(keys[SDLK_DOWN]);
-
-		rWheel.applyMotorForce(keys[SDLK_UP]);
-		rWheel.applyBrakeForce(keys[SDLK_DOWN]);
 		
 		// Camera location
 		vec3 cameraAcceleration(movementX, movementY, movementZ);
-		cameraSpeed += ((cameraRotation * cameraAcceleration) * accelerationFactor - cameraSpeed * brakeFactor) * dt;
+		cameraSpeed += ((/* cameraRotation *  */cameraAcceleration) * accelerationFactor - cameraSpeed * brakeFactor) * dt;
 		cameraLocation += cameraSpeed * dt;
 
+		cameraLocation = Math::lerp(cameraLocation, car.location + (car.rotation.backward() + vec3::up * 0.3f) * 10.f, 0.8f);
+		cameraRotation = car.rotation;
+
+		car.setThrottle((float32)keys[SDLK_UP]);
+		car.setSteering((float32)(keys[SDLK_RIGHT] - keys[SDLK_LEFT]));
+
 		// Simulate physics
-		lWheel.tickPhysics(dt);
-		rWheel.tickPhysics(dt);
+		car.tickPhysics(dt);
 
 		// Draw
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -275,12 +413,21 @@ int main()
 		viewProjectionMatrix = mat4::glProjection(M_PI_2, 0.5f) * mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
 		glUniformMatrix4fv(uniforms["viewProjectionMatrix"], 1, GL_TRUE, viewProjectionMatrix.array);
 
-		// Draw cubes
-		glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, mat4::transform(lWheel.location, lWheel.rotation, vec3(0.2f)).array);
-		glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0);
+		// Draw car
+		for (const auto wheelTransform : car.getWheelsTransforms())
+		{
+			glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, wheelTransform.array);
+			glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0);
+		}
+		/* glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, mat4::transform(car.location, car.rotation, vec3(1.f)).array);
+		glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0); */
 
-		glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, mat4::transform(rWheel.location, rWheel.rotation, vec3(0.2f)).array);
-		glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0);
+		/// Reference cubes
+		for (const auto & cube : cubes)
+		{
+			glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, cube.array);
+			glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0);
+		}
 
 		SDL_GL_SwapWindow(window);
 	}

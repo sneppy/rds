@@ -24,7 +24,13 @@ struct Math : public PlatformMath
 	template<typename T>
 	static CONSTEXPR FORCE_INLINE T lerp(ConstRefT(T) a, ConstRefT(T) b, float32 alpha = 0.5f)
 	{
-		return b * alpha - a * (1.f - alpha);
+		return b * alpha + a * (1.f - alpha);
+	}
+
+	template<typename T>
+	static CONSTEXPR FORCE_INLINE T lerp(T a, T b, float32 alpha = 0.5f)
+	{
+		return b * alpha + a * (1.f - alpha);
 	}
 
 	/**
