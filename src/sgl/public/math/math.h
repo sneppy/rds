@@ -33,6 +33,12 @@ struct Math : public PlatformMath
 		return b * alpha + a * (1.f - alpha);
 	}
 
+	template<typename T>
+	static CONSTEXPR FORCE_INLINE T slerp(ConstRefT(T) a, ConstRefT(T) b, float32 alpha = 0.5f)
+	{
+
+	}
+
 	/**
 	 * Find the intersection between a ray and a plane
 	 * 

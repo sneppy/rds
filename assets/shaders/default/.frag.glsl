@@ -17,10 +17,8 @@ void main()
 	vec3 lightColor = vec3(0.8f, 0.75f, 0.75f) * lightIntensity;
 
 	// Scattering light
-	vec3 scatteringLight = (dot(wsNormal, -lightDir) * 0.5f + 0.5f) * lightColor + ambientLight;
+	vec3 scatteringLight = (dot(wsNormal, -lightDir) * 0.5f + normalize(wsPosition)) * lightColor + ambientLight;
 
 	// Fragment color
 	fColor = vec4(min(scatteringLight, 1.f), 1.f);
-
-	fColor = vec4(max(normalize(wsPosition), 0.1f), 1.f);
 }

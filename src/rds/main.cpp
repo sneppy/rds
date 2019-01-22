@@ -1,6 +1,8 @@
 #include "coremin.h"
 #include "gldrv/gldrv.h"
 #include "primitives/box.h"
+#include "fbx/importer.h"
+#include "renderer/render_batch.h"
 #include <SDL.h>
 
 Malloc * gMalloc = nullptr;
@@ -13,6 +15,11 @@ vec3 cameraSpeed;
 quat cameraRotation;
 mat4 viewProjectionMatrix;
 
+// Time variables
+uint64 currTick;
+uint64 lastTick;
+float32 dt;
+
 const float32
 	accelerationFactor = 16.f,
 	brakeFactor = 4.f;
@@ -22,6 +29,7 @@ class Wheel
 public:
 	/// Wheel relative transform
 	vec3 offset;
+	quat rotation;
 	quat orientation;
 	quat phase;
 
@@ -57,7 +65,7 @@ public:
 		offset(_offset),
 		orientation(0.f, vec3::up),
 		phase(M_PI, vec3::right),
-		radius(0.21f),
+		radius(0.31f),
 		mass(20.f),
 		inertiaMoment(mass * radius * radius / 2.f),
 		staticCoeff(1.f),
@@ -104,9 +112,9 @@ public:
 		location(0.f),
 		rotation(0.f, vec3::up),
 		wheels(4),
-		mass(1500.f),
-		inertiaMoment((1.f / 12.f) * mass * (4.f + 18.f)),
-		centerOfMass(0.f, 0.f, -0.2f),
+		mass(1455.f),
+		inertiaMoment((1.f / 12.f) * mass * (25.f)),
+		centerOfMass(0.f, 0.31f, -0.2f),
 		linearMomentum(0.f),
 		linearVelocity(0.f),
 		angularMomentum(0.f),
@@ -117,15 +125,18 @@ public:
 	/// Setup wheels
 	FORCE_INLINE void setupWheels()
 	{
-		wheels(0) = Wheel(vec3(-1.587 / 2.f, 0.f, 1.4f)); // Left
-		wheels(1) = Wheel(vec3(1.587 / 2.f, 0.f, 1.4f)); // Left
-		wheels(2) = Wheel(vec3(-1.587 / 2.f, 0.f, -1.f)); // Left
-		wheels(3) = Wheel(vec3(1.587 / 2.f, 0.f, -1.f)); // Left
+		wheels(0) = Wheel(vec3(-1.587 / 2.f, 0.31f, 1.41f)); // Left
+		wheels(1) = Wheel(vec3(1.587 / 2.f, 0.31f, 1.41f)); // Left
+		wheels(2) = Wheel(vec3(-1.612 / 2.f, 0.31f, -1.28f)); // Left
+		wheels(3) = Wheel(vec3(1.612 / 2.f, 0.31f, -1.28f)); // Left
 
 		wheels[0].vehicle = this;
 		wheels[1].vehicle = this;
 		wheels[2].vehicle = this;
 		wheels[3].vehicle = this;
+
+		wheels[0].orientation = quat(M_PI, vec3::up),
+		wheels[2].orientation = quat(M_PI, vec3::up);
 	}
 
 	/// Set throttle
@@ -146,7 +157,7 @@ public:
 			axleMinLength = 1.f;
 		
 		const float32
-			steeringAngle = value * 0.2f,
+			steeringAngle = value * 0.4f,
 			alpha = M_PI / 3.f + Math::abs(steeringAngle),
 			A = Math::sin(alpha),
 			B = (axleMaxLength / axleRadius) - Math::cos(alpha),
@@ -157,8 +168,11 @@ public:
 			leftWheelAngle	= value > 0.f ? steeringAngle : -M_PI / 3.f + resultAngle,
 			rightWheelAngle	= value > 0.f ? M_PI / 3.f - resultAngle : steeringAngle;
 		
-		wheels[0].steeringAngle = Math::lerp(wheels[0].steeringAngle, leftWheelAngle, 0.1f),
-		wheels[1].steeringAngle = Math::lerp(wheels[1].steeringAngle, rightWheelAngle, 0.1f);
+		wheels[0].steeringAngle = Math::lerp(wheels[0].steeringAngle, leftWheelAngle, 0.005f),
+		wheels[1].steeringAngle = Math::lerp(wheels[1].steeringAngle, rightWheelAngle, 0.005f);
+		
+		wheels[2].steeringAngle = 0.f,
+		wheels[3].steeringAngle = 0.f;
 	}
 
 	/// Simulate physics
@@ -168,12 +182,16 @@ public:
 		for (auto & wheel : wheels)
 			wheel.tickPhysics(dt);
 
+		wheelsForce.print();
+
 		// Update momentum
 		linearMomentum	+= (rotation * wheelsForce) * dt;
 		angularMomentum	+= wheelsTorque * dt;
 
 		linearVelocity	= linearMomentum / mass;
 		angularVelocity	= angularMomentum / inertiaMoment;
+
+		printf("Cruise velocity: %.1f km/h\n", linearVelocity.getSize() * 3.6f);
 
 		// Update location
 		location += linearVelocity * dt;
@@ -187,6 +205,7 @@ public:
 
 	FORCE_INLINE void applyForce(const vec3 & f, const vec3 & p)
 	{
+		//f.print();
 		wheelsForce += f;
 		wheelsTorque += (p - centerOfMass) ^ f;
 	}
@@ -196,7 +215,7 @@ public:
 		Array<mat4> transforms;
 		mat4 vehicleTransform = mat4::transform(location, rotation);
 		for (const auto & wheel : wheels)
-			transforms += vehicleTransform * mat4::transform(wheel.offset, wheel.orientation, vec3(wheel.radius));
+			transforms += vehicleTransform * mat4::transform(wheel.offset, wheel.rotation);
 		
 		return transforms;
 	}
@@ -217,13 +236,14 @@ FORCE_INLINE void Wheel::tickPhysics(float32 dt)
 	
 	// Wheel torque
 	const quat steeringOrientation = quat(steeringAngle, vec3::up);
-	const vec3 tractiveForce = steeringOrientation.forward() * 1000.f * throttle;
+	const vec3 tractiveForce = steeringOrientation.forward() * 2400.f * throttle;
 
 	// Rolling resistance
-	const vec3 rollingResistance = -linearVelocity.getSafeNormal() * (0.005f + (1.f / tirePressure) * (0.01f + (linearVelocity * linearVelocity).getSize() / 771.f)) * suspensionForce.getSize();
+	const float32 wheelDeformation = 0.01;
+	const vec3 rollingResistance = -(!vehicle->rotation * vehicle->linearVelocity.getSafeNormal()) * (suspensionForce.getSize() * wheelDeformation) / Math::sqrt(radius * radius - wheelDeformation * wheelDeformation);
 
 	// Distributed drag resistance
-	const vec3 dragResistance = -(!vehicle->rotation * vehicle->linearVelocity) * vehicle->linearVelocity.getSize() * 0.45f / 4.f;
+	const vec3 dragResistance = -(!vehicle->rotation * vehicle->linearVelocity) * vehicle->linearVelocity.getSize() * 0.39f / 4.f;
 
 	// Forward force
 	const vec3 forwardForce = tractiveForce + rollingResistance + dragResistance;
@@ -238,7 +258,7 @@ FORCE_INLINE void Wheel::tickPhysics(float32 dt)
 	vec3 groundForce = lateralForce + forwardForce;
 	if (groundForce.getSize() > staticFriction + dragResistance.getSize())
 	{
-		printf("too much! %f\n", groundForce.getSize());
+		printf("too much! %.2fG\n", groundForce.getSize() / (vehicle->mass * 9.81f) * dt);
 		groundForce *= kineticFriction / groundForce.getSize();
 	}
 	
@@ -247,12 +267,11 @@ FORCE_INLINE void Wheel::tickPhysics(float32 dt)
 
 	// Update wheel rotation
 	angularVelocity = vec3::right * vehicle->linearVelocity.getSize() / radius;
-	vehicle->linearVelocity.print();
 	if (!angularVelocity.isNearlyZero())
 		phase = quat(angularVelocity.getSize() * dt, angularVelocity.getNormal()) * phase;
 
 	// Show wheel orientation
-	orientation = steeringOrientation * phase;
+	rotation = steeringOrientation * phase * orientation;
 }
 
 int main()
@@ -262,11 +281,24 @@ int main()
 
 	// Setup input
 	Map<uint32, int32> keys;
+	Map<uint32, float32> axes;
 	point2 cursorLocation, cursorDelta;
 
 	// Setup car
 	Vehicle car;
 	car.setupWheels();
+
+	// Import meshes
+	MeshData chassisMesh;
+	MeshData wheelMesh;
+
+	Importer importer;
+
+	importer.loadScene("assets/vehicle/GL_Shelby_ChassisOnlyY.fbx");
+	importer.importStaticMesh(chassisMesh);
+
+	importer.loadScene("assets/vehicle/GL_Shelby_WheelOnly.fbx");
+	importer.importStaticMesh(wheelMesh);
 
 	// Init keys
 	keys[SDLK_w] = 0,
@@ -275,6 +307,7 @@ int main()
 	keys[SDLK_d] = 0,
 	keys[SDLK_SPACE] = 0,
 	keys[SDLK_LCTRL] = 0;
+	axes[4] = -1.f;
 
 	bool bShouldQuit = false;
 
@@ -282,6 +315,22 @@ int main()
 
 	SDL_Window * window = SDL_CreateWindow("rds", 0, 0, 1920, 1080, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
+	SDL_GL_SetSwapInterval(0);
+
+	// Context requires a vao
+	uint32 vao;
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
+
+	SDL_GameController * gamepad = nullptr;
+	for (uint8 i = 0; i < SDL_NumJoysticks(); ++i)
+	{
+		if (SDL_IsGameController(i))
+		{
+			printf("found controller %s\n", SDL_GameControllerNameForIndex(i));
+			gamepad = SDL_GameControllerOpen(i);
+		}
+	}
 
 	SDL_WarpMouseInWindow(window, 1920 / 2, 1080 / 2);
 
@@ -318,16 +367,22 @@ int main()
 
 	printf("OpenGL version is (%s)\n", glGetString(GL_VERSION));
 
-	// Setup cube in opengl
 	uint32 prog = createProgram();
 	glUseProgram(prog);
 
-	uint32 vao, vbo, ebo;
-	glGenVertexArrays(1, &vao);
+	// Setup vehicle render batch
+	RenderBatch vehicleBatch;
+	vehicleBatch.addMesh(&chassisMesh, "Chassis");
+	vehicleBatch.upload();
+
+	RenderBatch wheelBatch;
+	wheelBatch.addMesh(&wheelMesh, "Wheel");
+	wheelBatch.upload();
+
+	// Setup cube in opengl
+	uint32 vbo, ebo;
 	glGenBuffers(1, &vbo);
 	glGenBuffers(1, &ebo);
-
-	glBindVertexArray(vao);
 
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, vertices.getCount() * sizeof(Vertex), *vertices, GL_STATIC_DRAW);
@@ -347,9 +402,9 @@ int main()
 	viewProjectionMatrix = mat4::glProjection(M_PI_2, 1.f) * mat4::translation(vec3(0.f, 0.f, 3.f));
 
 	// Time variables
-	uint64 currTick = SDL_GetPerformanceCounter();
-	uint64 lastTick = currTick;
-	float32 dt = 0.f;
+	currTick = SDL_GetPerformanceCounter();
+	lastTick = currTick;
+	dt = 0.f;
 
 	// Positions of reference cubes
 	Array<mat4> cubes(128);
@@ -358,7 +413,7 @@ int main()
 
 	// Camera setup
 	cameraLocation = vec3(0.f, 1.f, -5.f);
-	cameraRotation = quat(0.f, vec3::right);
+	cameraRotation = quat(M_PI_2, vec3::up);
 
 	while (!bShouldQuit)
 	{
@@ -367,7 +422,7 @@ int main()
 		dt = (float32)(currTick - lastTick) / SDL_GetPerformanceFrequency();
 		lastTick = currTick;
 
-		//printf("FPS: %u\n", (uint32)(1.f / dt));
+		printf("FPS: %u\n", (uint32)(1.f / dt));
 		
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
@@ -383,6 +438,9 @@ int main()
 				case SDL_KEYUP:
 					keys[(uint32)event.key.keysym.sym] = 0;
 					break;
+				case SDL_JOYAXISMOTION:
+					axes[(uint32)event.caxis.axis] = event.caxis.value / 32768.f;
+					break;
 			}
 		}
 
@@ -392,17 +450,19 @@ int main()
 			movementX = keys[SDLK_d] - keys[SDLK_a],
 			movementZ = keys[SDLK_w] - keys[SDLK_s],
 			movementY = keys[SDLK_SPACE] - keys[SDLK_LSHIFT];
+
+		cameraRotation = quat((movementX - axes[2]) * M_PI * dt, vec3::up) * cameraRotation;
 		
 		// Camera location
 		vec3 cameraAcceleration(movementX, movementY, movementZ);
 		cameraSpeed += ((/* cameraRotation *  */cameraAcceleration) * accelerationFactor - cameraSpeed * brakeFactor) * dt;
 		cameraLocation += cameraSpeed * dt;
 
-		cameraLocation = Math::lerp(cameraLocation, car.location + (car.rotation.backward() + vec3::up * 0.3f) * 10.f, 0.8f);
-		cameraRotation = car.rotation;
+		cameraLocation = Math::lerp(cameraLocation, car.location + (((quat)(cameraRotation * car.rotation)).backward() + vec3::up * 0.3f) * 10.f, 0.2f);
+		//cameraRotation = cameraRotation;
 
-		car.setThrottle((float32)keys[SDLK_UP]);
-		car.setSteering((float32)(keys[SDLK_RIGHT] - keys[SDLK_LEFT]));
+		car.setThrottle((float32)keys[SDLK_UP] + (axes[4] + 1.f) / 2.f);
+		car.setSteering((float32)(keys[SDLK_RIGHT] - keys[SDLK_LEFT]) + axes[0]);
 
 		// Simulate physics
 		car.tickPhysics(dt);
@@ -410,17 +470,14 @@ int main()
 		// Draw
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-		viewProjectionMatrix = mat4::glProjection(M_PI_2, 0.5f) * mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
+		viewProjectionMatrix = mat4::glProjection(M_PI_2, 0.5f) * mat4::rotation(!(quat)(cameraRotation * car.rotation)) * mat4::translation(-cameraLocation);
 		glUniformMatrix4fv(uniforms["viewProjectionMatrix"], 1, GL_TRUE, viewProjectionMatrix.array);
 
 		// Draw car
-		for (const auto wheelTransform : car.getWheelsTransforms())
-		{
-			glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, wheelTransform.array);
-			glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0);
-		}
-		/* glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, mat4::transform(car.location, car.rotation, vec3(1.f)).array);
-		glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0); */
+		glBindBuffer(GL_ARRAY_BUFFER, vbo),
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(0);
 
 		/// Reference cubes
 		for (const auto & cube : cubes)
@@ -428,6 +485,20 @@ int main()
 			glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, cube.array);
 			glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0);
 		}
+
+		// Draw chassis
+		vehicleBatch.bind();
+		glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, mat4::transform(car.location, car.rotation).array);
+		vehicleBatch.draw();
+
+		// Draw wheels
+		wheelBatch.bind();
+		for (const auto wheelTransform : car.getWheelsTransforms())
+		{
+			glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, wheelTransform.array);
+			wheelBatch.draw();
+		}
+		
 
 		SDL_GL_SwapWindow(window);
 	}
@@ -467,12 +538,6 @@ uint32 createProgram()
 	glShaderSource(vShader, 1, &vShaderSource, nullptr),
 	glShaderSource(fShader, 1, &fShaderSource, nullptr);
 	glCompileShader(vShader), glCompileShader(fShader);
-
-	/* int32 logSize = 0;
-	glGetShaderiv(vShader, GL_INFO_LOG_LENGTH, &logSize);
-	ansichar * shaderLog = reinterpret_cast<ansichar*>(gMalloc->malloc(logSize));
-	glGetShaderInfoLog(vShader, logSize, &logSize, shaderLog);
-	printf("%s\n", shaderLog); */
 
 	glAttachShader(prog, vShader),
 	glAttachShader(prog, fShader);
