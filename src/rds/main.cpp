@@ -433,6 +433,7 @@ int main()
 					bShouldQuit = true;
 					break;
 				case SDL_KEYDOWN:
+					if(event.key.keysym.sym == SDLK_ESCAPE) bShouldQuit = true;
 					keys[(uint32)event.key.keysym.sym] = 1;
 					break;
 				case SDL_KEYUP:
