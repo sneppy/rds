@@ -7,18 +7,21 @@
  */
 class RigidBody
 {
-protected:
+public:
 	/// World space location
 	vec3 location;
 
 	/// World space rotation
 	quat rotation;
 
+	/// Local transform
+	mat4 localTransform;
+
 	/// Physics properties
 	/// @{
-	vec3	centerOfMass;
 	float32	mass;
-	mat3	inertialTensor;
+	mat3	inertiaTensor;
+	vec3	centerOfMass;
 	/// @}
 
 	/// Linear velocity
@@ -28,22 +31,38 @@ protected:
 	vec3 angularVelocity;
 
 	/// Force to be applied to the center of mass
-	vec3 totalForce;
+	vec3 accumulatedForce;
 
 	/// Torque to be applied to the center of mass
-	vec3 torque;
+	vec3 accumulatedTorque;
 
 public:
 	/// Default constructor
 	RigidBody();
 
-	/// Tick physics
-	virtual void tick(float32 dt);
-
 	/// Get point velocity
-	FORCE_INLINE vec3 getPointVelocity(const vec3 & point)
+	FORCE_INLINE vec3 getPointVelocity(const vec3 & point) const
 	{
-		const vec3 r = point - centerOfMass;
+		const vec3 r = point - (localTransform * centerOfMass);
 		return linearVelocity + (angularVelocity ^ r) / r.getSquaredSize();
 	}
+
+	/// Apply force at point
+	FORCE_INLINE void applyForce(const vec3 & force, const vec3 & point)
+	{
+		// Forces contribute to accumulated force
+		// plus accumulated torque
+		accumulatedForce  += force;
+		accumulatedTorque += (point - (localTransform * centerOfMass)) ^ force;
+	}
+
+	/// Apply force at center of mass
+	FORCE_INLINE void applyForce(const vec3 & force)
+	{
+		// No torque generated
+		accumulatedForce  += force;
+	}
+
+	/// Tick physics
+	virtual void tick(float32 dt);
 };

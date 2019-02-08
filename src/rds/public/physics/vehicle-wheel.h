@@ -2,12 +2,31 @@
 
 #include "coremin.h"
 
+/// @todo delete
+extern float32 carThrottle;
+
+/// Forward decls
+class Vehicle;
+
 /**
  * @class VehicleWheel
  */
 class VehicleWheel
 {
-protected:
+public:
+	/// Vehicle that owns this wheel
+	Vehicle * vehicle;
+
+	/// Wheel local transform
+	/// @{
+	vec3 localOffset;
+	vec3 localRotation;
+	mat4 localTransform;
+	/// @}
+
+	/// Suspension join position
+	vec3 jointOffset;
+
 	/// Wheel mass
 	float32 mass;
 
@@ -17,10 +36,10 @@ protected:
 	/// Suspension model
 	/// @{
 	float32 suspensionLength;
-	float32 suspensionRestLength;
 	float32 suspensionPreviousLength;
 	float32 suspensionStiffness;
 	float32 suspensionDamping;
+	float32 suspensionRestLength;
 	/// @}
 
 	/// Geometric properties
@@ -32,30 +51,36 @@ protected:
 	/// @{
 	float32 staticFrictionCoefficient;
 	float32 kineticFrictionCoefficient;
+	float32 rollingFrictionCoefficient;
 	/// @}
+
+	//////////////////////////////////////////////////
+	// Draft
+	//////////////////////////////////////////////////
+	
+	/// Steering angle (radians)
+	float32 steeringAngle;
 
 public:
 	/// Default constructor
 	VehicleWheel();
 
+	/// Init wheel
+	void init(Vehicle * owner);
+
 protected:
 	/// Returns ground contact point
-	FORCE_INLINE bool getContactPoint(vec3 & contactPoint)
-	{
-		// @todo raycast and find hit point
-		contactPoint = vec3::zero;
-		return true;
-	}
+	bool getContactPoint(vec3 & contactPoint);
 
 	/// Computes applied suspension force
 	FORCE_INLINE vec3 getSuspensionForce(float32 dt) const
 	{
 		const float32 suspensionCompression	= suspensionRestLength - suspensionLength;
-		const float32 suspensionVelocity	= (suspensionPreviousLength - suspensionLength) / dt;
+		const float32 suspensionVelocity	= (suspensionLength - suspensionPreviousLength) / dt;
 
 		const float32 suspensionForce
 		= suspensionStiffness * suspensionCompression	// Spring force
-		+ suspensionDamping * suspensionVelocity;		// Drag force
+		- suspensionDamping * suspensionVelocity;		// Drag force
 
 		return vec3::up * suspensionForce;
 	}
@@ -64,6 +89,15 @@ protected:
 	FORCE_INLINE float32 getWheelDrive();
 
 public:
+	/// Set wheel offset w.r.t chassis
+	void setWheelOffset(const vec3 offset)
+	{
+		jointOffset = offset;
+	}
+
 	/// Tick physics
 	void tick(float32 dt);
+
+	/// Called after vehicle physics has been updated
+	void postTick(float32 dt);
 };
