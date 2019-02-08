@@ -19,4 +19,3 @@ enum class AtomicOrder
 	Relaxed,	// Relaxed, weaker
 	Sequential	// Sequentially consistent, stronger	
 };
-

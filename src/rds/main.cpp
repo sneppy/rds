@@ -69,7 +69,7 @@ public:
 		mass(20.f),
 		inertiaMoment(mass * radius * radius / 2.f),
 		staticCoeff(1.f),
-		kineticCoeff(0.8f),
+		kineticCoeff(0.9f),
 		tirePressure(2.1f),
 		linearMomentum(0.f),
 		linearVelocity(linearMomentum / mass),
@@ -105,6 +105,7 @@ public:
 	vec3 angularVelocity;
 	vec3 wheelsForce;
 	vec3 wheelsTorque;
+	vec3 centerOfRotation;
 
 public:
 	/// Default constructor
@@ -113,22 +114,23 @@ public:
 		rotation(0.f, vec3::up),
 		wheels(4),
 		mass(1455.f),
-		inertiaMoment((1.f / 12.f) * mass * (25.f)),
+		inertiaMoment((1.f / 12.f) * mass * (30.f)),
 		centerOfMass(0.f, 0.31f, -0.2f),
 		linearMomentum(0.f),
 		linearVelocity(0.f),
 		angularMomentum(0.f),
 		angularVelocity(0.f),
 		wheelsForce(0.f),
-		wheelsTorque(0.f) {}
+		wheelsTorque(0.f),
+		centerOfRotation(0.f) {}
 	
 	/// Setup wheels
 	FORCE_INLINE void setupWheels()
 	{
 		wheels(0) = Wheel(vec3(-1.587 / 2.f, 0.31f, 1.41f)); // Left
-		wheels(1) = Wheel(vec3(1.587 / 2.f, 0.31f, 1.41f)); // Left
-		wheels(2) = Wheel(vec3(-1.612 / 2.f, 0.31f, -1.28f)); // Left
-		wheels(3) = Wheel(vec3(1.612 / 2.f, 0.31f, -1.28f)); // Left
+		wheels(1) = Wheel(vec3(1.587 / 2.f, 0.31f, 1.41f));
+		wheels(2) = Wheel(vec3(-1.612 / 2.f, 0.31f, -1.28f));
+		wheels(3) = Wheel(vec3(1.612 / 2.f, 0.31f, -1.28f)); 
 
 		wheels[0].vehicle = this;
 		wheels[1].vehicle = this;
@@ -144,8 +146,8 @@ public:
 	{
 		wheels[0].throttle = value;
 		wheels[1].throttle = value;
-		wheels[2].throttle = value;
-		wheels[3].throttle = value;
+		/* wheels[2].throttle = value;
+		wheels[3].throttle = value; */
 	}
 
 	/// Set steering on wheels
@@ -155,9 +157,14 @@ public:
 			axleRadius = 0.2f,
 			axleMaxLength = 1.2f,
 			axleMinLength = 1.f;
+
+		// Ok, this is nice, but a simpler and
+		// better performing way is to force
+		// the angles to intersect in the instant
+		// center of rotation
 		
 		const float32
-			steeringAngle = value * 0.4f,
+			steeringAngle = value * 0.4f * (Math::pow(2.71, -linearVelocity.getSquaredSize() / 400.f)),
 			alpha = M_PI / 3.f + Math::abs(steeringAngle),
 			A = Math::sin(alpha),
 			B = (axleMaxLength / axleRadius) - Math::cos(alpha),
@@ -168,8 +175,8 @@ public:
 			leftWheelAngle	= value > 0.f ? steeringAngle : -M_PI / 3.f + resultAngle,
 			rightWheelAngle	= value > 0.f ? M_PI / 3.f - resultAngle : steeringAngle;
 		
-		wheels[0].steeringAngle = Math::lerp(wheels[0].steeringAngle, leftWheelAngle, 0.005f),
-		wheels[1].steeringAngle = Math::lerp(wheels[1].steeringAngle, rightWheelAngle, 0.005f);
+		wheels[0].steeringAngle = Math::lerp(wheels[0].steeringAngle, leftWheelAngle, 0.1f),
+		wheels[1].steeringAngle = Math::lerp(wheels[1].steeringAngle, rightWheelAngle, 0.1f);
 		
 		wheels[2].steeringAngle = 0.f,
 		wheels[3].steeringAngle = 0.f;
@@ -182,7 +189,7 @@ public:
 		for (auto & wheel : wheels)
 			wheel.tickPhysics(dt);
 
-		wheelsForce.print();
+		//wheelsForce.print();
 
 		// Update momentum
 		linearMomentum	+= (rotation * wheelsForce) * dt;
@@ -191,7 +198,17 @@ public:
 		linearVelocity	= linearMomentum / mass;
 		angularVelocity	= angularMomentum / inertiaMoment;
 
-		printf("Cruise velocity: %.1f km/h\n", linearVelocity.getSize() * 3.6f);
+		//printf("Cruise velocity: %.1f km/h\n", linearVelocity.getSize() * 3.6f);
+
+		// Update instant center of rotation
+		// Center of rotation should be the
+		// same, computed with the left and
+		// right wheels. Right now it's not
+		const float32 wheelsDistance = (wheels[0].offset - wheels[2].offset).getSize();
+		if (Math::abs(wheels[0].steeringAngle) > FLT_EPSILON)
+			centerOfRotation = (wheelsDistance / Math::sin(wheels[0].steeringAngle)) * quat(wheels[0].steeringAngle, vec3::up).right();
+		else
+			centerOfRotation = 0.f;
 
 		// Update location
 		location += linearVelocity * dt;
@@ -205,7 +222,6 @@ public:
 
 	FORCE_INLINE void applyForce(const vec3 & f, const vec3 & p)
 	{
-		//f.print();
 		wheelsForce += f;
 		wheelsTorque += (p - centerOfMass) ^ f;
 	}
@@ -246,19 +262,25 @@ FORCE_INLINE void Wheel::tickPhysics(float32 dt)
 	const vec3 dragResistance = -(!vehicle->rotation * vehicle->linearVelocity) * vehicle->linearVelocity.getSize() * 0.39f / 4.f;
 
 	// Forward force
-	const vec3 forwardForce = tractiveForce + rollingResistance + dragResistance;
+	vec3 forwardForce = tractiveForce + rollingResistance + dragResistance;
+
+	if (throttle < 0.f)
+	{
+		float32 brakeForce = 9600.f * throttle;
+		forwardForce += Math::min(staticFriction, brakeForce) * steeringOrientation.forward();
+	}
 	
 	// Lateral force
-	const vec3 lateralLinearMotion = ((!vehicle->rotation * vehicle->linearMomentum / 4.f) & steeringOrientation.right()) * steeringOrientation.right();
 	const vec3 centerOffset = (offset - vehicle->centerOfMass);
-	const vec3 lateralAngularMotion = (vehicle->angularMomentum ^ centerOffset) / (4.f * centerOffset.getSize() * centerOffset.getSize());
-	const vec3 lateralForce = -(lateralLinearMotion + lateralAngularMotion) / dt;
+	const vec3 vehicleForwardMomentum = !vehicle->rotation * (vehicle->linearMomentum / 4.f);
+	const vec3 vehicleTangentialMomentum = ((vehicle->angularMomentum / 4.f) ^ centerOffset) / centerOffset.getSquaredSize();
+	const vec3 lateralForce = ((vehicleForwardMomentum + vehicleTangentialMomentum) & steeringOrientation.right()) * steeringOrientation.left();
 
 	// Check friction
-	vec3 groundForce = lateralForce + forwardForce;
-	if (groundForce.getSize() > staticFriction + dragResistance.getSize())
+	vec3 groundForce = lateralForce / dt + forwardForce;
+	if (groundForce.getSize() > staticFriction)
 	{
-		printf("too much! %.2fG\n", groundForce.getSize() / (vehicle->mass * 9.81f) * dt);
+		printf("too much! %.2fG / %.2fG\n", groundForce.getSize() / (vehicle->mass / 4.f * 9.81f), staticFriction / (vehicle->mass / 4.f * 9.81f));
 		groundForce *= kineticFriction / groundForce.getSize();
 	}
 	
@@ -308,6 +330,7 @@ int main()
 	keys[SDLK_SPACE] = 0,
 	keys[SDLK_LCTRL] = 0;
 	axes[4] = -1.f;
+	axes[5] = -1.f;
 
 	bool bShouldQuit = false;
 
@@ -315,7 +338,7 @@ int main()
 
 	SDL_Window * window = SDL_CreateWindow("rds", 0, 0, 1920, 1080, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
-	SDL_GL_SetSwapInterval(0);
+	SDL_GL_SetSwapInterval(-1);
 
 	// Context requires a vao
 	uint32 vao;
@@ -413,7 +436,7 @@ int main()
 
 	// Camera setup
 	cameraLocation = vec3(0.f, 1.f, -5.f);
-	cameraRotation = quat(M_PI_2, vec3::up);
+	cameraRotation = quat(M_PI_2, vec3::right);
 
 	while (!bShouldQuit)
 	{
@@ -422,7 +445,7 @@ int main()
 		dt = (float32)(currTick - lastTick) / SDL_GetPerformanceFrequency();
 		lastTick = currTick;
 
-		printf("FPS: %u\n", (uint32)(1.f / dt));
+		//printf("FPS: %u\n", (uint32)(1.f / dt));
 		
 		SDL_Event event;
 		while (SDL_PollEvent(&event))
@@ -451,15 +474,16 @@ int main()
 			movementZ = keys[SDLK_w] - keys[SDLK_s],
 			movementY = keys[SDLK_SPACE] - keys[SDLK_LSHIFT];
 
-		cameraRotation = quat((movementX - axes[2]) * M_PI * dt, vec3::up) * cameraRotation;
+		//cameraRotation = quat((movementX - axes[2]) * M_PI * dt, vec3::up) * cameraRotation;
 		
 		// Camera location
 		vec3 cameraAcceleration(movementX, movementY, movementZ);
 		cameraSpeed += ((/* cameraRotation *  */cameraAcceleration) * accelerationFactor - cameraSpeed * brakeFactor) * dt;
 		cameraLocation += cameraSpeed * dt;
 
-		cameraLocation = Math::lerp(cameraLocation, car.location + (((quat)(cameraRotation * car.rotation)).backward() + vec3::up * 0.3f) * 10.f, 0.2f);
-		//cameraRotation = cameraRotation;
+		//cameraLocation = Math::lerp(cameraLocation, car.location + (((quat)(cameraRotation * car.rotation)).backward() + vec3::up * 0.3f) * 10.f, 0.2f);
+		const vec3 targetCameraLocation = car.location + car.rotation.up() * 25.f;
+		cameraLocation = Math::lerp(cameraLocation, targetCameraLocation, 0.25f);
 
 		car.setThrottle((float32)keys[SDLK_UP] + (axes[4] + 1.f) / 2.f);
 		car.setSteering((float32)(keys[SDLK_RIGHT] - keys[SDLK_LEFT]) + axes[0]);
@@ -470,7 +494,7 @@ int main()
 		// Draw
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-		viewProjectionMatrix = mat4::glProjection(M_PI_2, 0.5f) * mat4::rotation(!(quat)(cameraRotation * car.rotation)) * mat4::translation(-cameraLocation);
+		viewProjectionMatrix = mat4::glProjection(M_PI_2, 0.5f) * mat4::rotation(/* !(quat)(cameraRotation * car.rotation) */!cameraRotation) * mat4::translation(-cameraLocation);
 		glUniformMatrix4fv(uniforms["viewProjectionMatrix"], 1, GL_TRUE, viewProjectionMatrix.array);
 
 		// Draw car

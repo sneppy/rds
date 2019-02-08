@@ -12,4 +12,3 @@ using IsIntegral = std::is_integral<T>;
 
 /// @brief Quick value of @ref IsIntegral
 #define IsIntegralV(expr) IsIntegral<expr>::value
-
