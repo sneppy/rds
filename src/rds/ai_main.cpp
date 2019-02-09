@@ -20,6 +20,8 @@ int main(){
 
 	AgentEpisode ep;
 	AgentStep<NSF> step = {{1,0,0,0,1,0,0,0,1,1},2,1};
-	for(int i=0; i<10000000; i++) ep.push(step);
+	for(int i=0; i<1000; i++) ep.push(step);
 	printf("%d\n",ep.getCount());
+
+	Learner learner = Learner("Boltzmann","Linear",0.99);
 }

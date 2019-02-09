@@ -1,4 +1,4 @@
-#include "ai/boltzmannPolicy.h"
+#include "ai/policy/boltzmannPolicy.h"
 #include "ai/util.h"
 
 BoltzmannPolicy::BoltzmannPolicy(int nSF, int nA){
@@ -109,6 +109,7 @@ float BoltzmannPolicy::getParam(int sf, int a){
 };
 
 void BoltzmannPolicy::printPolicy(){
+
 	for(int a=0; a<nActions; a++){
 		printf("%.3f ",policy[a]);
 	}

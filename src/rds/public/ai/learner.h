@@ -1,7 +1,28 @@
 #pragma once
 #include "ai/util.h"
-#include "ai/boltzmannPolicy.h"
+#include "ai/policy/policy.h"
+#include "ai/policy/boltzmannPolicy.h"
+#include "coremin.h"
 
-#define NSF 10
+/*
+*	Policy gradient learner with Q-value function approximation
+*/
 
-using AgentEpisode = Array<AgentStep<NSF>>;
+class Learner {
+
+	public:
+
+		/*
+		*	[POLICY] policy_class: "Boltzmann"
+		*	[Q-FN APPROX] fa_class: ["Linear" - not implemented], ["NeuralNetwork" - not implemented]
+		*/
+		Learner(String policy_class="Boltzmann", String fa_class="Linear", float gamma=0.99);
+
+		int drawAction(float* stateFeatures);
+		void updatePolicy(Array<AgentEpisode> data);
+	
+	private:
+		
+		float gamma;
+		Policy *policy;
+};

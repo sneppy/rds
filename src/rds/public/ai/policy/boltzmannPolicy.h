@@ -1,7 +1,8 @@
 #pragma once
 #include "coremin.h"
+#include "ai/policy/policy.h"
 
-class BoltzmannPolicy{
+class BoltzmannPolicy: public Policy {
 
 	public:
 
@@ -11,21 +12,21 @@ class BoltzmannPolicy{
 		void computePolicy(float *stateFeatures);
 		void computeLogGradient(float *stateFeatures, int action);
 		int drawAction(float* stateFeatures);
-		
-		void printPolicy();
+
+		void printPolicy();	
+
+		float *policy; // nActions
+		float *logGradient; // nFeatures (= nParams)
+		float *params; // nFeatures (= nParams)
+	
+	private:
+
 		int f(int sf, int a);
 		void setParam(int sf, int a, float val);
 		float getParam(int sf, int a);
 		void buildFeatures(float *stateFeatures, int a, float* features);
-	
-	private:
 
 		int nStateFeatures;
 		int nActions;
-
 		int nFeatures;
-		float *params; // nFeatures
-
-		float *policy; // nActions
-		float *logGradient; // nFeatures
 };
