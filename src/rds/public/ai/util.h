@@ -4,6 +4,10 @@
 #define NSF 10
 #define NA 4
 
+#define ALPHA 0.003
+#define GAMMA 0.999
+#define LAMBDA 0.98
+
 template<uint32 nSF> struct AgentStep {
 
 	float s[nSF];
@@ -14,3 +18,7 @@ template<uint32 nSF> struct AgentStep {
 using AgentEpisode = Array<AgentStep<NSF>>;
 
 int probSample(float* distribution, int n);
+
+int getLinearFeaturesIndex(int sf, int a);
+
+void buildLinearFeatures(float *stateFeatures, int action, float* ftPointer);

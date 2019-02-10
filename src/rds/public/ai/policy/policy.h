@@ -12,7 +12,7 @@ class Policy {
 
 		virtual void printPolicy() = 0;	
 
-		float *policy; // nActions
+		float *policy; 		// nActions
 		float *logGradient; // nParams
-		float *params; // nParams
+		float *params; 		// nParams
 };

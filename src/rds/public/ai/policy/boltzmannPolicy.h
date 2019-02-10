@@ -7,6 +7,7 @@ class BoltzmannPolicy: public Policy {
 	public:
 
 		BoltzmannPolicy(int nSF, int nA);
+		~BoltzmannPolicy();
 		void initRandom(float minVal, float maxVal);
 
 		void computePolicy(float *stateFeatures);
@@ -15,18 +16,17 @@ class BoltzmannPolicy: public Policy {
 
 		void printPolicy();	
 
-		float *policy; // nActions
-		float *logGradient; // nFeatures (= nParams)
-		float *params; // nFeatures (= nParams)
+		// from Policy class:
+		//	float *policy; 		// nActions
+		//	float *logGradient; // nParams
+		//	float *params; 		// nParams
 	
 	private:
 
-		int f(int sf, int a);
 		void setParam(int sf, int a, float val);
 		float getParam(int sf, int a);
-		void buildFeatures(float *stateFeatures, int a, float* features);
 
 		int nStateFeatures;
 		int nActions;
-		int nFeatures;
+		int nFeatures; // nParams
 };

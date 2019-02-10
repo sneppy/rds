@@ -12,3 +12,20 @@ int probSample(float* dist, int n){
 	}
 	printf("Error in probSample: distribution doesn't sum up to 1.\n");
 }
+
+int getLinearFeaturesIndex(int sf, int a){
+	return a*NSF + sf;
+}
+
+void buildLinearFeatures(float *stateFeatures, int action, float* ftPointer){
+
+	if(action < 0 || action >= NA){
+		printf("Error: invalid action in BoltzmannPolicy::buildFeatures.\n");
+	}
+
+	for(int s=0; s<NSF; s++){
+		for(int a=0; a<NA; a++){
+			ftPointer[getLinearFeaturesIndex(s,a)] = stateFeatures[s]*(action==a);
+		}
+	}
+}

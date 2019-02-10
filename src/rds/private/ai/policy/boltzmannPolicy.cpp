@@ -13,6 +13,13 @@ BoltzmannPolicy::BoltzmannPolicy(int nSF, int nA){
 	initRandom(-0.1,0.1);
 };
 
+BoltzmannPolicy::~BoltzmannPolicy(){
+
+	free(params);
+	free(policy);
+	free(logGradient);
+}
+
 void BoltzmannPolicy::initRandom(float minVal, float maxVal){
 
 	for(int i=0; i<nFeatures; i++){
@@ -53,7 +60,7 @@ void BoltzmannPolicy::computeLogGradient(float *stateFeatures, int action){
 	for(int i=0; i<nActions; i++){
 		features[i] = (float*)malloc(nFeatures*sizeof(float));
 		terms[i] = 0;
-		buildFeatures(stateFeatures,i,features[i]);
+		buildLinearFeatures(stateFeatures,i,features[i]);
 		for(int j=0; j<nFeatures; j++){
 			terms[i] += params[j]*features[i][j];
 		}
@@ -75,27 +82,10 @@ void BoltzmannPolicy::computeLogGradient(float *stateFeatures, int action){
 	}
 };
 
-void BoltzmannPolicy::buildFeatures(float *stateFeatures, int action, float* ftPointer){
-
-	if(action < 0 || action >= nActions){
-		printf("Error: invalid action in BoltzmannPolicy::buildFeatures.\n");
-	}
-
-	for(int s=0; s<nStateFeatures; s++){
-		for(int a=0; a<nActions; a++){
-			ftPointer[f(s,a)] = stateFeatures[s]*(action==a);
-		}
-	}
-}
-
 int BoltzmannPolicy::drawAction(float* stateFeatures){
 
 	computePolicy(stateFeatures);
 	return probSample(policy,nActions);
-}
-
-int BoltzmannPolicy::f(int sf, int a){
-	return a*nStateFeatures + sf;
 }
 
 void BoltzmannPolicy::setParam(int sf, int a, float val){

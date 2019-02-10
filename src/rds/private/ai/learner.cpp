@@ -11,10 +11,10 @@ Learner::Learner(String policy_class, String fa_class, float gamma): gamma(gamma
 		exit(0);
 	}
 
-	/*
+	
 	if(fa_class=="Linear"){
-		printf("Learner::Learner() - Error: Linear function approximation not implemented.\n");
-		exit(0);
+		printf("Learner::Learner() - LinearFA set.\n");
+		fa = new LinearFA(NSF*NA,ALPHA,GAMMA,LAMBDA);
 	}
 	else if(fa_class=="NeuralNetwork"){
 		printf("Learner::Learner() - Error: NeuralNetwork function approximation not implemented.\n");
@@ -24,8 +24,13 @@ Learner::Learner(String policy_class, String fa_class, float gamma): gamma(gamma
 		printf("Learner::Learner() - Error: unknown function approximation class.\n");
 		exit(0);
 	}
-	*/
 
+}
+
+Learner::~Learner(){
+	
+	delete policy;
+	delete fa;
 }
 
 int Learner::drawAction(float* stateFeatures){
