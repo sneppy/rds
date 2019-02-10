@@ -4,6 +4,7 @@
 
 /// @todo delete
 extern float32 carThrottle;
+extern float32 carBrake;
 
 /// Forward decls
 class Vehicle;

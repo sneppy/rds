@@ -9,15 +9,15 @@ VehicleWheel::VehicleWheel() :
 	jointOffset(0.f),
 	mass(15.f), // Kg
 	load(350.f),
-	suspensionLength(0.f),
+	suspensionLength(0.21f),
 	suspensionPreviousLength(suspensionLength),
-	suspensionStiffness(50000.f),
+	suspensionStiffness(36000.f),
 	suspensionDamping(3000.f),
 	suspensionRestLength((load * 9.81f) / suspensionStiffness + suspensionLength), // @todo gravity property of the world
 	radius(0.31f),
-	staticFrictionCoefficient(1.f),
+	staticFrictionCoefficient(0.9f),
 	kineticFrictionCoefficient(0.8f),
-	rollingFrictionCoefficient(0.014f) {}
+	rollingFrictionCoefficient(0.02f) {}
 
 void VehicleWheel::init(Vehicle * owner)
 {
@@ -50,6 +50,7 @@ void VehicleWheel::tick(float32 dt)
 	// Calc friction forces
 	const float32 maxStaticFriction  = suspensionForce.getSize() * staticFrictionCoefficient;
 	const float32 maxKineticFriction = suspensionForce.getSize() * kineticFrictionCoefficient;
+	const float32 maxRollingFriction = suspensionForce.getSize() * rollingFrictionCoefficient;
 
 	// Get direction vectors
 	// @todo use wheel steering
@@ -58,6 +59,8 @@ void VehicleWheel::tick(float32 dt)
 		forward	= steering.forward(),
 		right	= steering.right(),
 		up		= steering.up();
+
+	forward.print();
 
 	// Side force
 	// @todo there's a better way to compute impulse
@@ -70,24 +73,31 @@ void VehicleWheel::tick(float32 dt)
 
 	// Forwawrd force
 	vec3 rollingForce;
-	if (true/* motor force is on */)
+	if (carThrottle > carBrake)
 	{
 		// @todo motor force should be determined by engine -> wheel torque
-		const float32 motorForce = 2000.f * carThrottle;
+		const float32 motorForce = 1600.f * carThrottle;
 		rollingForce = forward * motorForce;
 	}
 	else
 	{
 		// What's the impulse that would immediately stop the car?
 		// @todo compute that value
-		float32 stopImpulse = 0.f;
+		const vec3 stopImpulse = -vehicle->chassis.getPointVelocity(contactPoint) * load / dt;
 		
-		// The max deceleration is limited by the max friction force
-		const float32 rollingResistance	= suspensionForce.getSize() * rollingFrictionCoefficient;
-		const float32 brakeForce		= 0.f;
-		const float32 stopForce			= Math::min(stopImpulse, Math::max(brakeForce, rollingResistance));
+		// Apply rolling resistance
+		const vec3 rollingResistance = -maxRollingFriction * forward;
 
-		rollingForce = (forward & vehicle->chassis.linearVelocity) > 0.f ? -stopForce : stopForce;
+		// Brakes exhibits different behaviours
+		// If the brake force is small, the wheel spins slower
+		// otherwise, the wheel is blocked
+		const vec3 brakeForce = -carBrake * 9600.f * forward;
+
+		const vec3 stopForce = rollingResistance + brakeForce;		
+		if (stopForce.getSize() < stopImpulse.getSize())
+			rollingForce = stopForce;
+		else
+			rollingForce = stopImpulse;
 	}
 
 	// Compute the sum of forward and lateral force
@@ -111,6 +121,6 @@ void VehicleWheel::postTick(float32 dt)
 {
 	// Here we should update wheel transform
 	// only for rendering purpose
-	localOffset		= jointOffset - vec3::up * suspensionLength;
+	localOffset		= jointOffset - vec3::up * Math::min(suspensionRestLength, suspensionLength);
 	localTransform	= mat4::transform(localOffset, quat(steeringAngle, vec3::up));
 }

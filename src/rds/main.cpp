@@ -19,6 +19,7 @@ mat4 viewProjectionMatrix;
 
 /// @todo delete
 float32 carThrottle = 0.f;
+float32 carBrake = 0.f;
 
 // Time variables
 uint64 currTick;
@@ -62,7 +63,7 @@ int main()
 	keys[SDLK_SPACE] = 0,
 	keys[SDLK_LCTRL] = 0;
 	axes[4] = -1.f;
-	axes[5] = -1.f;
+	axes[3] = -1.f;
 
 	bool bShouldQuit = false;
 
@@ -164,7 +165,7 @@ int main()
 	// Positions of reference cubes
 	Array<mat4> cubes(128);
 	for (uint8 i = 0; i < cubes.getSize(); ++i)
-		cubes += mat4::translation(vec3(Math::randf(), 0.f, Math::randf()) * 100.f);
+		cubes += mat4::translation(vec3(Math::randf(), 1.f / 100.f, Math::randf()) * 100.f);
 
 	// Camera setup
 	cameraLocation = vec3(0.f, 1.f, -5.f);
@@ -249,7 +250,8 @@ int main()
 			car.wheels[2]->steeringAngle = 0.f,
 			car.wheels[3]->steeringAngle = 0.f;
 		}
-		carThrottle = (float32)keys[SDLK_UP] + (axes[4] + 1.f) / 2.f;
+		carThrottle	= (float32)keys[SDLK_UP] + (axes[4] + 1.f) / 2.f;
+		carBrake	= (float32)keys[SDLK_DOWN] + (axes[3] + 1.f) / 2.f;
 
 		// Simulate physics
 		car.tick(dt);

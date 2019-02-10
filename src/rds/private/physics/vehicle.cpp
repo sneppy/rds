@@ -2,7 +2,7 @@
 #include "physics/vehicle-wheel.h"
 
 Vehicle::Vehicle() :
-	location(0.f),
+	location(vec3::up * 0.6f),
 	rotation(0.f, vec3::up),
 	localTransform(mat4::transform(location, rotation)),
 	chassis(),
@@ -14,15 +14,17 @@ Vehicle::Vehicle() :
 	bSimulateGravity(true)
 {
 	// Setup chassis
+	chassis.location = location;
+	chassis.rotation = rotation;
 	chassis.mass = 1400.f;
-	chassis.centerOfMass = vec3(0.f, 0.6f, -0.2f);
+	chassis.centerOfMass = vec3(0.f, 0.45f, -0.1f);
 
 	// @todo setup wheels
 	const vec3 wheelOffsets[4] = {
-		vec3(-1.587 / 2.f, 0.31f, 1.41f),
-		vec3(1.587 / 2.f, 0.31f, 1.41f),
-		vec3(-1.612 / 2.f, 0.31f, -1.28f),
-		vec3(1.612 / 2.f, 0.31f, -1.28f)
+		vec3(-1.587 / 2.f, 0.51f, 1.41f),
+		vec3(1.587 / 2.f, 0.51f, 1.41f),
+		vec3(-1.612 / 2.f, 0.51f, -1.28f),
+		vec3(1.612 / 2.f, 0.51f, -1.28f)
 	};
 	for (uint32 i = 0; i < 4; ++i)
 	{
@@ -61,6 +63,8 @@ void Vehicle::tick(float32 dt)
 	location = chassis.location;
 	rotation = chassis.rotation;
 	localTransform = mat4::transform(location, rotation);
+
+	printf("speed: %f km/h\n", chassis.getPointVelocity(chassis.centerOfMass).getSize() * 3.6f);
 
 	/// Update wheels transform
 	for (auto wheel : wheels)
