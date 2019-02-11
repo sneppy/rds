@@ -10,6 +10,9 @@ class LinearFA: public FA {
 		~LinearFA();
 
 		void initRandom(float minVal, float maxVal);
+		float getValue(float* features);
+		void resetTrace();
+		void updateParams(float* sa1, float r, float* sa2, int endOfEpisode);
 	
 	private:
 
@@ -17,6 +20,7 @@ class LinearFA: public FA {
 		float gamma;
 		float lambda;
 		float alpha;
+		float z_threshold = 1.0f;
 
 		float *theta;
 		float *zeta;

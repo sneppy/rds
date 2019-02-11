@@ -16,13 +16,15 @@ class Learner {
 
 		/*
 		*	[POLICY] policy_class: "Boltzmann"
-		*	[Q-FN APPROX] fa_class: ["Linear" - not implemented], ["NeuralNetwork" - not implemented]
+		*	[Q-FN APPROX] fa_class: "Linear", ["NeuralNetwork" - not implemented]
 		*/
 		Learner(String policy_class="Boltzmann", String fa_class="Linear", float gamma=0.99);
 		~Learner();
 
 		int drawAction(float* stateFeatures);
-		void updatePolicy(Array<AgentEpisode> data);
+		void updateQFA(Array<AgentEpisode> episodes);
+		void updatePolicy(Array<AgentEpisode> episodes);
+		void learningStep(Array<AgentEpisode> episodes);
 	
 	private:
 		

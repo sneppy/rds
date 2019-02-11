@@ -10,7 +10,8 @@ class Policy {
 		virtual void computeLogGradient(float *stateFeatures, int action) = 0;
 		virtual int drawAction(float* stateFeatures) = 0;
 
-		virtual void printPolicy() = 0;	
+		virtual void printPolicy() = 0;
+		virtual int getNumParams() = 0;
 
 		float *policy; 		// nActions
 		float *logGradient; // nParams

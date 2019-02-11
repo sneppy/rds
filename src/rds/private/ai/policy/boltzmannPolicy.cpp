@@ -5,10 +5,10 @@ BoltzmannPolicy::BoltzmannPolicy(int nSF, int nA){
 
 	nStateFeatures = nSF;
 	nActions = nA;
-	nFeatures = nSF * nA;
-	params = (float*)malloc(nFeatures*sizeof(float));
+	nParams = nSF * nA;
+	params = (float*)malloc(nParams*sizeof(float));
 	policy = (float*)malloc(nActions*sizeof(float));
-	logGradient = (float*)malloc(nFeatures*sizeof(float));
+	logGradient = (float*)malloc(nParams*sizeof(float));
 
 	initRandom(-0.1,0.1);
 };
@@ -22,7 +22,7 @@ BoltzmannPolicy::~BoltzmannPolicy(){
 
 void BoltzmannPolicy::initRandom(float minVal, float maxVal){
 
-	for(int i=0; i<nFeatures; i++){
+	for(int i=0; i<nParams; i++){
 		params[i] = minVal + ((float)rand()/(float)(RAND_MAX))*(maxVal-minVal);
 	}
 };
@@ -58,17 +58,17 @@ void BoltzmannPolicy::computeLogGradient(float *stateFeatures, int action){
 
 	float *features[nActions], terms[nActions], sumTerms=0.0f;
 	for(int i=0; i<nActions; i++){
-		features[i] = (float*)malloc(nFeatures*sizeof(float));
+		features[i] = (float*)malloc(nParams*sizeof(float));
 		terms[i] = 0;
 		buildLinearFeatures(stateFeatures,i,features[i]);
-		for(int j=0; j<nFeatures; j++){
+		for(int j=0; j<nParams; j++){
 			terms[i] += params[j]*features[i][j];
 		}
 		terms[i] = exp(terms[i]);
 		sumTerms += terms[i];
 	}
 
-	for(int f=0; f<nFeatures; f++){
+	for(int f=0; f<nParams; f++){
 		logGradient[f] = 0.0f;
 		for(int a=0; a<nActions; a++){
 			logGradient[f] -= terms[a]*features[a][f];
@@ -104,4 +104,8 @@ void BoltzmannPolicy::printPolicy(){
 		printf("%.3f ",policy[a]);
 	}
 	printf("\n");
+}
+
+int BoltzmannPolicy::getNumParams(){
+	return nParams;
 }

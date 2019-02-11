@@ -15,6 +15,7 @@ class BoltzmannPolicy: public Policy {
 		int drawAction(float* stateFeatures);
 
 		void printPolicy();	
+		int getNumParams();
 
 		// from Policy class:
 		//	float *policy; 		// nActions
@@ -28,5 +29,5 @@ class BoltzmannPolicy: public Policy {
 
 		int nStateFeatures;
 		int nActions;
-		int nFeatures; // nParams
+		int nParams;
 };
