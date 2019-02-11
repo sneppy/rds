@@ -23,5 +23,5 @@ int main(){
 	for(int i=0; i<1000; i++) ep.push(step);
 	printf("%d\n",ep.getCount());
 
-	Learner learner = Learner("Boltzmann","Linear",0.99);
+	Learner learner = Learner(PolicyClass::BOLTZMANN, FAClass::LINEAR, 0.99);
 }

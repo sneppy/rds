@@ -1,28 +1,33 @@
 #include "ai/learner.h"
 
-Learner::Learner(String policy_class, String fa_class, float gamma): gamma(gamma) {
+Learner::Learner(PolicyClass pc, FAClass fc, float gamma) : gamma(gamma) {
 	
-	if(policy_class=="Boltzmann"){
-		printf("Learner::Learner() - BoltzmannPolicy set.\n");
-		policy = new BoltzmannPolicy(NSF,NA);
+	switch(pc){
+		case PolicyClass::BOLTZMANN:
+			printf("Learner::Learner() - BoltzmannPolicy set.\n");
+			policy = new BoltzmannPolicy(NSF,NA);
+			break;
+		default:
+			printf("Learner::Learner() - Error: unknown policy class.\n");
+			exit(EXIT_SUCCESS);
+			break;
 	}
-	else{
-		printf("Learner::Learner() - Error: unknown policy class.\n");
-		exit(0);
-	}
+	
+	switch(fc){
+		case FAClass::LINEAR:
+			printf("Learner::Learner() - LinearFA set.\n");
+			fa = new LinearFA(NSF*NA,ALPHA,GAMMA,LAMBDA);
+			break;
 
-	
-	if(fa_class=="Linear"){
-		printf("Learner::Learner() - LinearFA set.\n");
-		fa = new LinearFA(NSF*NA,ALPHA,GAMMA,LAMBDA);
-	}
-	else if(fa_class=="NeuralNetwork"){
-		printf("Learner::Learner() - Error: NeuralNetwork function approximation not implemented.\n");
-		exit(0);
-	}
-	else{
-		printf("Learner::Learner() - Error: unknown function approximation class.\n");
-		exit(0);
+		case FAClass::NN:
+			printf("Learner::Learner() - Error: NeuralNetwork function approximation not implemented.\n");
+			exit(EXIT_SUCCESS);
+			break;
+
+		default:
+			printf("Learner::Learner() - Error: unknown function approximation class.\n");
+			exit(EXIT_SUCCESS);
+			break;
 	}
 
 }
@@ -38,7 +43,7 @@ int Learner::drawAction(float* stateFeatures){
 	return policy->drawAction(stateFeatures);
 }
 
-void Learner::updateQFA(Array<AgentEpisode> episodes){
+void Learner::updateQFA(Array<AgentEpisode> &episodes){
 
 	int numParams = policy->getNumParams();
 	int N = episodes.getCount();
@@ -65,7 +70,7 @@ void Learner::updateQFA(Array<AgentEpisode> episodes){
 	}
 }
 
-void Learner::updatePolicy(Array<AgentEpisode> episodes){
+void Learner::updatePolicy(Array<AgentEpisode> &episodes){
 
 	int numParams = policy->getNumParams();
 	float gradient[numParams];
@@ -105,7 +110,7 @@ void Learner::updatePolicy(Array<AgentEpisode> episodes){
 	}
 }
 
-void Learner::learningStep(Array<AgentEpisode> episodes){
+void Learner::learningStep(Array<AgentEpisode> &episodes){
 
 	updateQFA(episodes);
 	updatePolicy(episodes);

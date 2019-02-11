@@ -8,6 +8,15 @@
 #define GAMMA 0.999
 #define LAMBDA 0.98
 
+enum class PolicyClass {
+	BOLTZMANN
+};
+
+enum class FAClass{
+	LINEAR,
+	NN
+};
+
 template<uint32 nSF> struct AgentStep {
 
 	float s[nSF];
