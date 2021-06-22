@@ -43,6 +43,7 @@
 	expansion(PFNGLREADBUFFERPROC, glReadBuffer) \
 	expansion(PFNGLDRAWBUFFERPROC, glDrawBuffer) \
 	expansion(PFNGLBLITFRAMEBUFFERPROC, glBlitFramebuffer) \
+	expansion(PFNGLVIEWPORTPROC, glViewport) \
 	expansion(PFNGLFINISHPROC, glFinish) \
 	expansion(PFNGLBINDTEXTUREPROC, glBindTexture) \
 	expansion(PFNGLFRONTFACEPROC, glFrontFace) \

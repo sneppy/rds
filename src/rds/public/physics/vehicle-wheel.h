@@ -21,7 +21,7 @@ public:
 	/// Wheel local transform
 	/// @{
 	vec3 localOffset;
-	vec3 localRotation;
+	quat localRotation;
 	mat4 localTransform;
 	/// @}
 
@@ -33,6 +33,9 @@ public:
 
 	/// Load of the car on this wheel
 	float32 load;
+
+	/// Wether this wheel receives power from engine
+	bool bPowered;
 
 	/// Suspension model
 	/// @{
@@ -54,13 +57,22 @@ public:
 	float32 kineticFrictionCoefficient;
 	float32 rollingFrictionCoefficient;
 	/// @}
-
-	//////////////////////////////////////////////////
-	// Draft
-	//////////////////////////////////////////////////
 	
 	/// Steering angle (radians)
 	float32 steeringAngle;
+
+	//////////////////////////////////////////////////
+	// Visuals only
+	//////////////////////////////////////////////////
+
+	/// Wheel orientation
+	quat wheelOrientation;
+
+	/// Wheel rolling speed and phase
+	/// @{
+	float32 rollingSpeed;
+	float32 rollingPhase;
+	/// @}
 
 public:
 	/// Default constructor

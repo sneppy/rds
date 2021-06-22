@@ -21,13 +21,15 @@ void RigidBody::tick(float32 dt)
 	const vec3 linearAcceleration	= accumulatedForce / mass;
 	const vec3 angularAcceleration	= accumulatedTorque / ((1.f / 12.f) * mass * (25.f)); // @todo this should be inertia tensor
 
+	printf("a: %f\n", linearAcceleration.getSize());
+
 	// Integrate to find new velocity
 	linearVelocity	+= linearAcceleration * dt;
 	angularVelocity += angularAcceleration * dt;
 	const float32 angularSpeed = angularVelocity.getSize();
 
 	// Integrate velocity to find new location and rotation
-	location += linearVelocity * dt;
+	/* location += linearVelocity * dt;
 	if (angularSpeed > FLT_EPSILON)
 	{
 		rotation  = quat(angularSpeed * dt, angularVelocity / angularSpeed) * rotation;
@@ -35,7 +37,7 @@ void RigidBody::tick(float32 dt)
 	}
 
 	// Update local transform
-	localTransform = mat4::transform(location, rotation);
+	localTransform = mat4::transform(location, rotation); */
 
 	// Reset accumulated forces
 	accumulatedForce	= 0.f;

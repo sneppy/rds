@@ -44,7 +44,7 @@ public:
 	FORCE_INLINE vec3 getPointVelocity(const vec3 & point) const
 	{
 		const vec3 r = point - (localTransform * centerOfMass);
-		return linearVelocity + (angularVelocity ^ r) / r.getSquaredSize();
+		return linearVelocity + (angularVelocity ^ r);
 	}
 
 	/// Apply force at point

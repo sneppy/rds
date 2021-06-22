@@ -5,6 +5,7 @@
 #include "renderer/render_batch.h"
 #include "physics/vehicle.h"
 #include "physics/vehicle-wheel.h"
+#include "primitives/plane.h"
 #include <SDL.h>
 
 Malloc * gMalloc = nullptr;
@@ -13,6 +14,7 @@ ansichar * readFile(const String & filename);
 uint32 createProgram();
 
 vec3 cameraLocation;
+vec3 cameraLocation2;
 vec3 cameraSpeed;
 quat cameraRotation;
 mat4 viewProjectionMatrix;
@@ -49,10 +51,10 @@ int main()
 
 	Importer importer;
 
-	importer.loadScene("assets/vehicle/GL_Shelby_ChassisOnlyY.fbx");
+	importer.loadScene("assets/vehicle/GL_Shelby_Chassis.fbx");
 	importer.importStaticMesh(chassisMesh);
 
-	importer.loadScene("assets/vehicle/GL_Shelby_WheelOnly.fbx");
+	importer.loadScene("assets/vehicle/GL_Shelby_Wheel.fbx");
 	importer.importStaticMesh(wheelMesh);
 
 	// Init keys
@@ -69,7 +71,7 @@ int main()
 
 	initOpenGL();
 
-	SDL_Window * window = SDL_CreateWindow("rds", 0, 0, 1920, 1080, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
+	SDL_Window * window = SDL_CreateWindow("rds", 0, 0, 3840, 1080, SDL_WINDOW_OPENGL | SDL_WINDOW_BORDERLESS);
 	SDL_GLContext context = SDL_GL_CreateContext(window);
 	SDL_GL_SetSwapInterval(-1);
 
@@ -92,6 +94,9 @@ int main()
 
 	glEnable(GL_DEPTH_TEST);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+	// Setup plane
+	Plane ground(-100.f, 100.f, vec3::up);
 
 	// Setup a nice little cube
 	using Vertex = Vec3<float32, false>;
@@ -129,7 +134,7 @@ int main()
 	// Setup vehicle render batch
 	RenderBatch vehicleBatch;
 	vehicleBatch.addMesh(&chassisMesh, "Chassis");
-	vehicleBatch.upload();
+	vehicleBatch.upload();\
 
 	RenderBatch wheelBatch;
 	wheelBatch.addMesh(&wheelMesh, "Wheel");
@@ -147,7 +152,7 @@ int main()
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, triangles.getCount() * sizeof(dim3), *triangles, GL_STATIC_DRAW);
 
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(-1);
 
 	// Setup camera and model transform
 	Map<String, uint32> uniforms;
@@ -169,6 +174,7 @@ int main()
 
 	// Camera setup
 	cameraLocation = vec3(0.f, 1.f, -5.f);
+	cameraLocation2 = car.location;
 	cameraRotation = quat(M_PI_2 / 2.f, vec3(1.f, 1.f, 0.f));
 
 	while (!bShouldQuit)
@@ -214,13 +220,13 @@ int main()
 		cameraSpeed += ((/* cameraRotation *  */cameraAcceleration) * accelerationFactor - cameraSpeed * brakeFactor) * dt;
 		cameraLocation += cameraSpeed * dt;
 
-		//cameraLocation = Math::lerp(cameraLocation, car.location + (((quat)(cameraRotation * car.rotation)).backward() + vec3::up * 0.3f) * 10.f, 0.2f);
-		const vec3 targetCameraLocation = car.location + cameraRotation.backward() * 10.f;
-		cameraLocation = Math::lerp(cameraLocation, targetCameraLocation, 1.f);
+		//const vec3 targetCameraLocation = car.location + cameraRotation.backward() * 6.f;
+		const vec3 targetCameraLocation = car.location + car.rotation.backward() * 4.f + vec3::up * 1.6f;
+		cameraLocation = Math::lerp(cameraLocation, targetCameraLocation, 0.2f * (60.f * dt));
 
-		/* car.setThrottle((float32)keys[SDLK_UP] + (axes[4] + 1.f) / 2.f);
-		car.setSteering((float32)(keys[SDLK_RIGHT] - keys[SDLK_LEFT]) + axes[0]); */
-		{
+		cameraRotation = quat(M_PI_2 / 8.f, car.rotation.right()) * car.rotation;
+		
+		/* {
 			const float32
 				axleRadius = 0.2f,
 				axleMaxLength = 1.2f,
@@ -233,7 +239,7 @@ int main()
 			// center of rotation
 			
 			const float32
-				steeringAngle = value * 0.4f/*  * (Math::pow(1.5f, -car.chassis.linearVelocity.getSquaredSize() / 400.f)) */,
+				steeringAngle = value * 0.4f * (Math::pow(1.5f, -car.chassis.linearVelocity.getSquaredSize() / 400.f)),
 				alpha = M_PI / 3.f + Math::abs(steeringAngle),
 				A = Math::sin(alpha),
 				B = (axleMaxLength / axleRadius) - Math::cos(alpha),
@@ -244,22 +250,91 @@ int main()
 				leftWheelAngle	= value > 0.f ? steeringAngle : -M_PI / 3.f + resultAngle,
 				rightWheelAngle	= value > 0.f ? M_PI / 3.f - resultAngle : steeringAngle;
 			
-			car.wheels[0]->steeringAngle = Math::lerp(car.wheels[0]->steeringAngle, leftWheelAngle, 0.2f),
-			car.wheels[1]->steeringAngle = Math::lerp(car.wheels[1]->steeringAngle, rightWheelAngle, 0.2f);
+			car.wheels[0]->steeringAngle = Math::lerp(car.wheels[0]->steeringAngle, leftWheelAngle, 0.1f * (60.f * dt)),
+			car.wheels[1]->steeringAngle = Math::lerp(car.wheels[1]->steeringAngle, rightWheelAngle, 0.1f * (60.f * dt));
 			
 			car.wheels[2]->steeringAngle = 0.f,
 			car.wheels[3]->steeringAngle = 0.f;
+		} */
+
+		{
+			float32 steeringValue = ((float32)(keys[SDLK_RIGHT] - keys[SDLK_LEFT]) + axes[0]) * 0.6f;
+			float32 wl = 0.f, wr = 0.f;
+		
+			if (abs(steeringValue) > 0.f)
+			{
+				float32 d = car.wheels[0]->localOffset.z - car.wheels[3]->localOffset.z;
+				float32 l = d / Math::tan(steeringValue);
+
+				wl = Math::atan2(d, l - car.wheels[0]->localOffset.x);
+				wr = Math::atan2(d, l - car.wheels[1]->localOffset.x);
+
+				if (l < 0.f)
+				{
+					wl = wl - M_PI;
+					wr = wr - M_PI;
+				}
+			}
+
+			car.wheels[0]->steeringAngle = Math::lerp(car.wheels[0]->steeringAngle, wl, 0.1f * (60.f * dt));
+			car.wheels[1]->steeringAngle = Math::lerp(car.wheels[1]->steeringAngle, wr, 0.1f * (60.f * dt));;
+			car.wheels[2]->steeringAngle = 0.f;
+			car.wheels[3]->steeringAngle = 0.f;
+
+			printf("wl: %f; wr: %f\n", car.wheels[0]->steeringAngle, car.wheels[1]->steeringAngle);
 		}
+		
 		carThrottle	= (float32)keys[SDLK_UP] + (axes[4] + 1.f) / 2.f;
 		carBrake	= (float32)keys[SDLK_DOWN] + (axes[3] + 1.f) / 2.f;
 
 		// Simulate physics
-		car.tick(dt);
+		car.tick(dt * 0.75f);
 
 		// Draw
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+		glViewport(1920, 0, 1920, 1080);
 
-		viewProjectionMatrix = mat4::glProjection(M_PI_2, 0.5f) * mat4::rotation(/* !(quat)(cameraRotation * car.rotation) */!cameraRotation) * mat4::translation(-cameraLocation);
+		viewProjectionMatrix = mat4::glProjection(M_PI_2, 0.5f) * mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation);
+		glUniformMatrix4fv(uniforms["viewProjectionMatrix"], 1, GL_TRUE, viewProjectionMatrix.array);
+
+		// Draw car
+		glBindBuffer(GL_ARRAY_BUFFER, vbo),
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(0);
+
+		/// Reference cubes
+		for (const auto & cube : cubes)
+		{
+			glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, cube.array);
+			glDrawElements(GL_TRIANGLES, 12 * 3, GL_UNSIGNED_INT, 0);
+		}
+
+		// Draw chassis
+		vehicleBatch.bind();
+		glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, car.localTransform.array);
+		vehicleBatch.draw();
+
+		// Draw wheels
+		wheelBatch.bind();
+		for (auto wheel : car.wheels)
+		{
+			glUniformMatrix4fv(uniforms["modelMatrix"], 1, GL_TRUE, (car.localTransform * wheel->localTransform).array);
+			wheelBatch.draw();
+		}
+
+		// Draw again --------------------------------
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glViewport(0, 0, 1920, 1080);
+		{
+			cameraRotation = quat(M_PI_2 / 2.f, vec3(1.f, 1.f, 0.f));
+
+			const vec3 targetCameraLocation = car.location + cameraRotation.backward() * 6.f;
+			cameraLocation2 = Math::lerp(cameraLocation2, targetCameraLocation, 0.4f * (60.f * dt));
+		}
+		
+		viewProjectionMatrix = mat4::glProjection(M_PI_2, 0.5f) * mat4::rotation(!cameraRotation) * mat4::translation(-cameraLocation2);
 		glUniformMatrix4fv(uniforms["viewProjectionMatrix"], 1, GL_TRUE, viewProjectionMatrix.array);
 
 		// Draw car

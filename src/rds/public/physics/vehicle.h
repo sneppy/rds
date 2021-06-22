@@ -30,9 +30,9 @@ public:
 	/// Car aerodynamics
 	/// @{
 	float32 dragCoefficient;
-	float32 dragArea;
 	float32 dragHeight;
 	float32 dragWidth;
+	float32 dragArea;
 	/// @{
 
 	/// Flag to enable/disable gravity
